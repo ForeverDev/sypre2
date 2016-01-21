@@ -5,7 +5,7 @@
 int main(int argc, char** argv) {
 
 	lex_state* L = spylex_newstate();
-	lex_tokenize(L, "'Hello' 'Swag'");
+	lex_tokenize(L, "'Hello' 'Swag' test\0");
 
 	return 0;
 }

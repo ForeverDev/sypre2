@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include "slex.h"
 
 lex_state* spylex_newstate() {
@@ -15,7 +16,7 @@ static inline const s8* lex_stringFromType(lex_state* L, lex_token_type type) {
 		"TK_NULL", "TK_PLUS", "TK_MINUS", "TK_MUL", "TK_DIV",
 		"TK_OPENPAR", "TK_CLOSEPAR", "TK_OPENSQ", "TK_CLOSESQ",
 		"TK_OPENCURL", "TK_CLOSECURL", "TK_STRING", "TK_NUMBER",
-		"TK_ARRAY"	
+		"TK_ARRAY", "TK_ID"	
 	};
 	return names[type];
 }
@@ -64,6 +65,18 @@ void lex_tokenize(lex_state* L, const s8* src) {
 			case '}':
 				t.type = TK_CLOSECURL;
 				break;
+			case '+':
+				t.type = TK_PLUS;
+				break;
+			case '-':
+				t.type = TK_MINUS;
+				break;
+			case '*':
+				t.type = TK_MUL;
+				break;
+			case '/':
+				t.type = TK_DIV;
+				break;
 			case '\'':
 			case '\"': {
 				u32 slen = 0;
@@ -77,6 +90,21 @@ void lex_tokenize(lex_state* L, const s8* src) {
 				t.word[slen] = '\0';
 				break;
 			}
+			// identifier or keyword
+			default: {
+				u32 idlen = 0;
+				while (isalnum(src[srci + (idlen++)]));
+				idlen++;
+				t.type = TK_NAME;
+				t.word = malloc(sizeof(char) * idlen);
+				t.word[0] = c;
+				for (u32 i = 1; i < idlen; i++) {
+					t.word[i] = src[srci++];
+				}
+				t.word[idlen] = '\0';
+				break;
+			}
+
 		}
 		if (t.type != TK_NULL) {
 			L->tokens[L->tptr++] = t;

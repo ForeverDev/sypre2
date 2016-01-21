@@ -8,7 +8,7 @@ typedef enum tag_token_type {
 	TK_PLUS,		TK_MINUS,		TK_MUL,			TK_DIV,
 	TK_OPENPAR,		TK_CLOSEPAR,	TK_OPENSQ,		TK_CLOSESQ,
 	TK_OPENCURL,	TK_CLOSECURL,	TK_STRING,		TK_NUMBER,
-	TK_ARRAY
+	TK_ARRAY,		TK_NAME
 } lex_token_type;
 
 typedef struct tag_token {
