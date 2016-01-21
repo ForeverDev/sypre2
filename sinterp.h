@@ -22,26 +22,23 @@ typedef long long			s64;
 typedef float				f32;
 typedef double				f64;
 
-typedef struct tag_spy_data {
-	u8 type;
-	union {
-		s64 ival;
-		f64 fval;
-		u64 pval;
-	};
-} spy_data;
+typedef struct tag_spy_mark {
+	u8	isnull;
+	f64 data;
+} spy_mark;
 
-struct tag_spy_state {
-	u64 ip;
-	u64 sp;
-	u64 fp;	
-	u64 mem[SIZE_MEM]; 
-	u8	marks[SIZE_MEM];
+typedef struct tag_spy_state {
+	u64			ip;
+	u64			sp;
+	u64			fp;	
+	f64			mem[SIZE_MEM]; 
+	spy_mark	marks[SIZE_MEM];
 } spy_state;
 
 spy_state*	spy_newstate();
 u64			spy_malloc(spy_state*, u64);
-void		spy_runtimeError(spy_state*, const u8*);
-void		spy_run(spy_state*, u64*);
+void		spy_runtimeError(spy_state*, const s8*);
+void		spy_dumpMemory(spy_state*);
+void		spy_run(spy_state*, const u64*);
 
 #endif
