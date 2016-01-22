@@ -22,12 +22,12 @@ typedef long long			s64;
 typedef float				f32;
 typedef double				f64;
 
-typedef struct tag_spy_mark {
+typedef struct spy_mark {
 	u8	isnull;
 	f64 data;
 } spy_mark;
 
-typedef struct tag_spy_state {
+typedef struct spy_state {
 	u64			ip;
 	u64			sp;
 	u64			fp;	
