@@ -13,6 +13,7 @@ lex.token_grammar = {
     ["/"]       = "DIVIDE";
     ["%"]       = "MODULUS";
     ["="]       = "REASSIGN";
+    ["."]       = "CONCAT";
     [">"]       = "GT";
     ["<"]       = "LT";
     [">="]      = "GE";
@@ -132,6 +133,7 @@ function lex:generate()
                     self:inc()
                 end
                 self:pushtoken(str)
+                self:dec()
             -- operator
             elseif c:match("%p") or c == ";" then
                 local nxt = self:peek(1)

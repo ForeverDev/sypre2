@@ -172,7 +172,7 @@ function parse:dump(chunk, tabs)
                 else
                     io.write(tab .. i .. ": ")
                     for j, k in pairs(v) do
-                        io.write(k.word .. " ")
+                        io.write(k.typeof .. " ")
                     end
                     print()
                 end
@@ -207,6 +207,7 @@ function parse:main()
             self:jumpIntoBlock(self.curblock.parent_chunk.parent_block)
         -- break can have an optional expression after it.  If it evaluates to true, loop WILL break
         elseif t.typeof == "RETURN" or t.typeof == "BREAK" then
+            self:inc()
             local chunk = self:createChunk(t.typeof, false)
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
             chunk.expression = expression
