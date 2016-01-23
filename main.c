@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "sinterp.h"
-#include "slex.h"
+#include <lua.h>
+#include <lualib.h>
+#include <lauxlib.h>
 
 int main(int argc, char** argv) {
 
@@ -14,10 +15,12 @@ int main(int argc, char** argv) {
 		FILE* input;
 		char* src;
 		unsigned long long file_size;
+        lua_State* L;
 
+        // read source contents
         input = fopen(argv[2], "r");
         if (input == NULL) {
-            printf("SPYRE: attempt to run non-existant bytecode file '%s'\n", argv[2]);
+            printf("\nSPYRE ERROR: attempt to compile non-existant file '%s'\n\n", argv[2]);
             return 1;
         }
         fseek(input, 0, SEEK_END);
@@ -28,10 +31,23 @@ int main(int argc, char** argv) {
         src[file_size] = '\0';
         fclose(input);
 
-		lex_state* L = spylex_newstate();
-		lex_tokenize(L, src);
-
+        // hand to lua compiler
+        L = luaL_newstate();
+        luaL_openlibs(L);
+        if (luaL_dofile(L, "spyre.lua")) {
+            printf("\nSPYRE ERROR: could not run compiler (spyre.lua)\n\n");
+            return 1;
+        }
+        // push entry point
+        lua_getglobal(L, "main");
+        // push file to be compiled
+        lua_pushstring(L, argv[2]);
+        // call entry point
+        if (lua_pcall(L, 1, 1, 0)) {
+            printf("\nSPYRE ERROR: compiler lua error:\n");
+            printf("\t%s\n\n", lua_tostring(L, -1));
+        }
 	}
 
-	return 0;
+    return 0;
 }
