@@ -1,3 +1,5 @@
-func main := file, {
+func main := file {
+    if somefunc(file) {
 
+    }
 }

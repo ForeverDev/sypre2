@@ -39,6 +39,12 @@ function parse:space()
     return self.index <= #self.tokens
 end
 
+function parse:throw(msgformat, ...)
+    local message = string.format(msgformat, ...)
+    print(string.format("\nSPYRE PARSE ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self:gettok().line))
+    error()
+end
+
 function parse:createChunk(typeof, has_block)
     local chunk = {}
     chunk.typeof = typeof
@@ -129,8 +135,27 @@ function parse:parseFunc()
     self:inc()
     local chunk = self:createChunk("FUNCTION", true)
     chunk.arguments = {}
-    local arguments = self:parseExpressionUntil("COMMA", nil)
-    print(self:gettoken().typeof)
+    chunk.nargs = 0
+    chunk.identifier = self:gettok().word
+    self:inc(2)
+    local args, raw = self:parseExpressionUntil("OPENCURL", nil)
+    local i = 1
+    while true do
+        if args[i].typeof ~= "ID" then
+            self:throw("Expected function parameter name, got %s", args[i].typeof)
+        end
+        table.insert(chunk.arguments, args[i])
+        chunk.nargs = chunk.nargs + 1
+        i = i + 1
+        if not args[i] then
+            break
+        elseif args[i].typeof ~= "COMMA" then
+            self:throw("Expected comma in function parameter list, got %s", args[i].typeof)
+        end
+        i = i + 1
+    end
+    self:pushIntoCurblock(chunk)
+    self:jumpIntoBlock(chunk.block)
     self:dec()
 end
 
@@ -140,10 +165,18 @@ function parse:dump(chunk, tabs)
     local tab = string.rep("\t", tabs)
     print(tab .. "type: " .. chunk.typeof)
     for i, v in pairs(chunk) do
-        if i ~= "block" and i ~= "typeof" then
-            if type(v) == "table" and v.raw then
-                print(tab .. i .. ": " .. v.raw)
-            elseif type(v) ~= "table" then
+        if i ~= "block" and i ~= "typeof" and i ~= "parent_block" then
+            if type(v) == "table" then
+                if v.raw then
+                    print(tab .. i .. ": " .. v.raw)
+                else
+                    io.write(tab .. i .. ": ")
+                    for j, k in pairs(v) do
+                        io.write(k.word .. " ")
+                    end
+                    print()
+                end
+            else
                 print(tab .. i .. ": " .. v)
             end
         end
@@ -172,6 +205,13 @@ function parse:main()
             self:parseFunc()
         elseif t.typeof == "CLOSECURL" then
             self:jumpIntoBlock(self.curblock.parent_chunk.parent_block)
+        -- break can have an optional expression after it.  If it evaluates to true, loop WILL break
+        elseif t.typeof == "RETURN" or t.typeof == "BREAK" then
+            local chunk = self:createChunk(t.typeof, false)
+            local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
+            chunk.expression = expression
+            chunk.expression.raw = raw
+            self:pushIntoCurblock(chunk)
         elseif t.typeof ~= "OPENCURL" then
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
             if #expression > 0 then
@@ -197,4 +237,3 @@ return function(tokens)
     return parse_state.tree
 
 end
-
