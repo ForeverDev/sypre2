@@ -1,5 +1,22 @@
-func main := file {
-    if somefunc(file) {
+// C FUNCTIONS
+//   string getch();
+//   string getln();
+//   void   println(string);
+//   void   print(string);
 
+func factorial := n {
+    if n == 1 {
+        return 1;
     }
+    return n * factorial(n - 1);
 }
+
+func main := filepath {
+
+    println("What would you like to find the factorial of?");
+    n := getln();
+    // todo fix syntax highlighting D:
+    println("The factorial of " . n . " is " . factorial(number(n)));
+
+}
+
