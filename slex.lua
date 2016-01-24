@@ -179,7 +179,6 @@ return function(contents)
 
     lex_state:init(contents)
     lex_state:generate()
-    lex_state:dump()
 
     return lex_state.tokens
 

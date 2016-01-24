@@ -233,7 +233,6 @@ return function(tokens)
 
     parse_state:init(tokens)
     parse_state:main()
-    parse_state:dump()
 
     return parse_state.tree
 
