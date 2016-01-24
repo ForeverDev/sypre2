@@ -13,6 +13,6 @@ To run a compiled file:<br>
 <b>spy r (compiled_filename) </b>
 
 <b>IMAGES</b>
-![Alt text](https://i.gyazo.com/0a59f494f558aba4a1ea987f19b569ee.png "Code example 1")
+![Alt text](https://i.gyazo.com/e8bd215d9214989fca711174ad09b5c3.png "Code example 1")
 
 
