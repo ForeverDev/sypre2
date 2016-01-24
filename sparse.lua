@@ -6,17 +6,24 @@
 local parse = {}
 
 function parse:init(tokens)
-    self.tree       = {}
-    self.index      = 1
-    self.tokens     = tokens
-    self.curblock   = nil
+    self.tree               = {}
+    self.index              = 1
+    self.tokens             = tokens
+    self.curblock           = nil
+    self.datatypes = {
+        ["real"]            = {sizeof = 1};
+        ["string"]          = {sizeof = 1};
+        ["null"]            = {sizeof = 1};
+    }
 
-    local root      = {}
-    root.typeof     = "ROOT"
-    root.block      = {parent_chunk = root}
-    self.tree[1]    = root
-    self.root       = root
-    self.curblock   = root.block
+    local root              = {}
+    root.typeof             = "ROOT"
+    root.block_index        = 1
+    root.block              = {}
+    root.block.parent_chunk = root
+    self.tree[1]            = root
+    self.root               = root
+    self.curblock           = root.block
 end
 
 function parse:inc(i)
@@ -41,8 +48,15 @@ end
 
 function parse:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
-    print(string.format("\nSPYRE PARSE ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self:gettok().line))
-    error()
+    local token = self:gettok()
+    print(string.format("\nSPYRE PARSE ERROR: \n\tMESSAGE: %s\n\tLINE: %s\n", message, token and tostring(token.line) or "?"))
+    os.exit()
+end
+
+function parse:checkDatatype(datatype)
+    if not self.datatypes[datatype] then
+        self:throw("Unknown datatype '%s'", datatype)
+    end
 end
 
 function parse:createChunk(typeof, has_block)
@@ -50,6 +64,7 @@ function parse:createChunk(typeof, has_block)
     chunk.typeof = typeof
     chunk.block = has_block and {parent_chunk = chunk} or nil
     chunk.parent_block = self.curblock
+    chunk.block_index = #self.curblock + 1
     return chunk
 end
 
@@ -138,46 +153,153 @@ function parse:parseFunc()
     chunk.nargs = 0
     chunk.identifier = self:gettok().word
     self:inc(2)
-    local args, raw = self:parseExpressionUntil("OPENCURL", nil)
+    chunk.rettype = self:gettok().word
+    self:checkDatatype(chunk.rettype)
+    self:inc(3)
+    local args, raw = self:parseExpressionUntil("CLOSEPAR", nil)
     local i = 1
     while true do
-        if args[i].typeof ~= "ID" then
-            self:throw("Expected function parameter name, got %s", args[i].typeof)
+        local argtype, argid;
+        self:checkDatatype(args[i].word)
+        argtype = args[i].word
+        i = i + 1
+        if args[i].typeof ~= "IDENTIFIER" then
+            self:throw("Expected function parameter name, got '%s'", args[i].typeof)
         end
-        table.insert(chunk.arguments, args[i])
+        argid = args[i].word
+        table.insert(chunk.arguments, {
+            datatype = argtype;
+            identifier = argid;
+        })
         chunk.nargs = chunk.nargs + 1
         i = i + 1
         if not args[i] then
             break
         elseif args[i].typeof ~= "COMMA" then
-            self:throw("Expected comma in function parameter list, got %s", args[i].typeof)
+            self:throw("Expected comma in function parameter list, got '%s'", args[i].typeof)
         end
         i = i + 1
     end
+    self:inc(1)
     self:pushIntoCurblock(chunk)
     self:jumpIntoBlock(chunk.block)
     self:dec()
+end
+
+-- struct members are in the form of
+-- {
+--      identifier = <name>;
+--      datatype = <datatype>;
+-- }
+function parse:parseStruct()
+    self:inc()
+    local typename = self:gettok().word
+    local sizeof = 0
+    local members = {}
+    self:inc(2)
+    local finish = self:parseExpressionUntil("CLOSECURL", "OPENCURL")
+    local i = 1
+    while i <= #finish do
+        local v = finish[i]
+        if self.datatypes[v.word] then
+            local memid = finish[i + 1]
+            if not memid or memid.typeof ~= "IDENTIFIER" then
+                self:throw(
+                    "In declaration of 'struct %s', expected identifier for member with datatype '%s', got non-id '%s'",
+                    typename,
+                    v.word,
+                    memid and "null" or memid.word
+                )
+            end
+            table.insert(members, {
+                datatype = v.word;
+                identifier = finish[i + 1];
+                offset = sizeof;
+            })
+            sizeof = sizeof + 1
+            i = i + 2
+            if not finish[i] or finish[i].typeof ~= "SEMICOLON" then
+                self:throw("Expected ';' to close declaration of member '%s' of struct '%s'", memid.word, typename)
+            end
+        elseif v.typeof == "STRUCT" then
+            self:throw(
+                "Embedded structs are currently not supported: (struct '%s' embedded in struct '%s')",
+                finish[i + 1] and finish[i + 1].word or "?",
+                typename
+            )
+        else
+            i = i + 1
+        end
+    end
+    if sizeof == 0 then
+        self:throw("Struct '%s' must have at least one member", typename)
+    end
+    self.datatypes[typename] = {
+        sizeof = sizeof;
+        members = members;
+    }
+end
+
+-- syntax possibilities:
+--   x : datatype;          (declaration)
+--   x : datatype = 10;     (assignment)
+--   x := 10;               (assignment, compiler infers datatype)
+function parse:parseDeclaration()
+    local identifier = self:gettok().word
+    -- skip over colon
+    self:inc(2)
+    local datatype = self:gettok()
+    local found_datatype = nil
+    if datatype.typeof == "ASSIGN" then
+        -- if we reached here, the user used the ':=' assignment
+        -- operator and wants us to determine the datatype
+        found_datatype = "__INFER__"
+    else
+        -- if we reached here, the user specified the datatype
+        self:checkDatatype(datatype.word)
+        found_datatype = datatype.word
+        self:inc()
+    end
+    local now = self:gettok()
+    local chunk;
+    if now.typeof == "SEMICOLON" then
+        -- if we reached here, the user just declared the variable
+        chunk = self:createChunk("VARIABLE_DECLARATION", false)
+        chunk.identifier = identifier
+        chunk.datatype = found_datatype
+    else
+        -- else, the user is assigning the variable to the
+        -- result of an expression
+        self:inc()
+        chunk = self:createChunk("VARIABLE_ASSIGNMENT", false)
+        chunk.identifier = identifier
+        chunk.datatype = found_datatype
+        chunk.expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
+        chunk.expression.raw = raw
+    end
+    self:pushIntoCurblock(chunk)
 end
 
 function parse:dump(chunk, tabs)
     chunk = chunk or self.root
     tabs = tabs or 0
     local tab = string.rep("\t", tabs)
-    print(tab .. "type: " .. chunk.typeof)
+    if chunk.typeof then
+        print(tab .. "type: " .. chunk.typeof)
+    end
     for i, v in pairs(chunk) do
-        if i ~= "block" and i ~= "typeof" and i ~= "parent_block" then
-            if type(v) == "table" then
-                if v.raw then
-                    print(tab .. i .. ": " .. v.raw)
-                else
-                    io.write(tab .. i .. ": ")
-                    for j, k in pairs(v) do
-                        io.write(k.typeof .. " ")
-                    end
-                    print()
-                end
+        if i ~= "block" and i ~= "typeof" and i ~= "parent_block" and type(v) ~= "table" then
+            print(tab .. i .. ": " .. v)
+        end
+    end
+    for i, v in pairs(chunk) do
+        if i ~= "block" and i ~= "typeof" and i ~= "parent_block" and type(v) == "table" then
+            if v.raw then
+                print(tab .. i .. ": " .. v.raw)
             else
-                print(tab .. i .. ": " .. v)
+                print(tab .. i .. ": {")
+                self:dump(v, tabs + 1)
+                print(tab .. "}")
             end
         end
     end
@@ -203,6 +325,8 @@ function parse:main()
             self:parseFor()
         elseif t.typeof == "FUNCTION" then
             self:parseFunc()
+        elseif t.typeof == "STRUCT" then
+            self:parseStruct()
         elseif t.typeof == "CLOSECURL" then
             self:jumpIntoBlock(self.curblock.parent_chunk.parent_block)
         -- break can have an optional expression after it.  If it evaluates to true, loop WILL break
@@ -213,6 +337,8 @@ function parse:main()
             chunk.expression = expression
             chunk.expression.raw = raw
             self:pushIntoCurblock(chunk)
+        elseif t.typeof == "IDENTIFIER" and self.tokens[self.index + 1] and self.tokens[self.index + 1].typeof == "COLON" then
+            self:parseDeclaration()
         elseif t.typeof ~= "OPENCURL" then
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
             if #expression > 0 then
@@ -233,6 +359,7 @@ return function(tokens)
 
     parse_state:init(tokens)
     parse_state:main()
+    parse_state:dump()
 
     return parse_state.tree
 

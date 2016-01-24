@@ -1,4 +1,10 @@
-func main := filepath {
+func main : null = (string filepath) {
+
+    x : real;
+    x = 1.0;
+
+    y : real = 2.0;
+
+    z := 3.0;
 
 }
-

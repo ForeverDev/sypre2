@@ -12,14 +12,13 @@ lex.token_grammar = {
     ["*"]       = "MULTIPLY";
     ["/"]       = "DIVIDE";
     ["%"]       = "MODULUS";
-    ["="]       = "REASSIGN";
+    ["="]       = "ASSIGN";
     ["."]       = "CONCAT";
     [">"]       = "GT";
     ["<"]       = "LT";
     [">="]      = "GE";
     ["<="]      = "LE";
     ["=="]      = "EQ";
-    [":="]      = "ASSIGN";
     ["++"]      = "INCREMENT";
     ["--"]      = "DECREMENT";
     ["+="]      = "NADD";
@@ -34,6 +33,7 @@ lex.token_grammar = {
     ["]"]       = "CLOSESQ";
     ["{"]       = "OPENCURL";
     ["}"]       = "CLOSECURL";
+    [":"]       = "COLON";
     [";"]       = "SEMICOLON";
     [","]       = "COMMA";
     -- keywords
@@ -44,6 +44,9 @@ lex.token_grammar = {
     ["defer"]   = "DEFER";
     ["return"]  = "RETURN";
     ["break"]   = "BREAK";
+    ["struct"]  = "STRUCT";
+    ["real"]    = "DATATYPE";
+    ["string"]  = "DATATYPE";
     ["local"]   = "MODIFIER";
     ["global"]  = "MODIFIER";
     ["const"]   = "MODIFIER";
@@ -99,7 +102,7 @@ function lex:pushtoken(word)
             token.typeof = "STRING"
             token.word = word:sub(2, -2)
         else
-            token.typeof = "ID"
+            token.typeof = "IDENTIFIER"
         end
     end
     table.insert(self.tokens, token)
@@ -157,7 +160,7 @@ function lex:generate()
             -- keyword or identifier
             else
                 local id = ""
-                while (c:match("%a") or c == "_") and c ~= " " do
+                while (c:match("%a") or c == "_" or c:match("%d")) and c ~= " " do
                     id = id .. c
                     self:inc()
                     c = self:getchar()

@@ -16,8 +16,11 @@ compile.opcodes = {
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1}
 }
 
-function compile:init()
-    self.bytecode = {}
+function compile:init(tree)
+    self.tree       = tree
+    self.at         = tree[1]
+    self.done       = false
+    self.bytecode   = {}
 end
 
 function compile:dump()
@@ -66,8 +69,37 @@ function compile:push(...)
     end
 end
 
-function compile:main()
+function compile:expression(expression)
 
+end
+
+function compile:branch()
+    if self.at.block and self.at.block[1] then
+        self.at = self.at.block[1]
+    else
+        while not self.at.parent_block[self.at.block_index + 1] do
+            self.at = self.at.parent_block.parent_chunk
+            if not self.at.parent_block then
+                self.done = true
+                return
+            end
+        end
+        self.at = self.at.parent_block[self.at.block_index + 1]
+    end
+    local t = self.at.typeof
+    if t == "IF" then
+
+    end
+end
+
+function compile:main()
+    while true do
+        self:branch()
+        if self.done then
+            break
+        end
+    end
+    self:push("NULL", "NULL", "NULL")
 end
 
 return function(tree)
@@ -75,12 +107,9 @@ return function(tree)
     local compile_state = setmetatable({}, {__index = compile})
 
 
-    compile_state:init()
-
-    compile_state:push("PUSHNUM", "10", "NULL", "NULL", "NULL")
-
+    compile_state:init(tree)
     compile_state:main()
-    compile_state:dump()
+    --compile_state:dump()
 
     return compile_state.bytecode
 
