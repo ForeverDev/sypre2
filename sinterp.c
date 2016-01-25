@@ -7,7 +7,7 @@ spy_state* spy_newstate() {
 	spy_state* S = malloc(sizeof(spy_state));
 	S->ip = 0;
 	S->sp = SIZE_STACK; // stack grows downwards
-	S->fp = 0;
+	S->fp = SIZE_STACK;
 	memset(S->mem, 0, sizeof(S->mem));
 	memset(S->marks, 0, sizeof(S->marks));
 	for (u64 i = 0; i < SIZE_MEM; i++) {
@@ -47,7 +47,7 @@ void spy_runtimeError(spy_state* S, const char* message) {
 void spy_dumpMemory(spy_state* S) {
 	printf("MEMORY DUMP:\n");
 	for (u64 i = S->sp; i < SIZE_MEM; i++) {
-		if (i <= SIZE_STACK || !S->marks[i].isnull) {
+		if ((i <= SIZE_STACK || S->marks[i]) && i != SIZE_STACK) {
 			printf("0x%08llx: %F\n", i, S->mem[i]);
 		}
 	}
@@ -120,15 +120,15 @@ void spy_run(spy_state* S, const u64* code) {
 				break;
             // PUSHLOCAL
             case 0x0d:
-                S->mem[--S->sp] = S->mem[S->fp + code[S->ip++]];
+                S->mem[--S->sp] = S->mem[S->fp - code[S->ip++]];
                 break;
             // SETLOCAL
             case 0x0e:
-                S->mem[S->fp + code[S->ip++]] = S->mem[S->sp++];
+                S->mem[S->fp - code[S->ip++]] = S->mem[S->sp++];
                 break;
             // PUSHARG
-            case 0x0f;
-                S->mem[--S->sp] = S->mem[S->fp - 3 - code[S->ip++]];
+            case 0x0f:
+                S->mem[--S->sp] = S->mem[S->fp + 3 + code[S->ip++]];
                 break;
             // CALL
             case 0x10: {
@@ -146,7 +146,7 @@ void spy_run(spy_state* S, const u64* code) {
 				S->sp = S->fp;
 				S->ip = (u64)S->mem[S->sp++];
 				S->fp = (u64)S->mem[S->sp++];
-				S->sp -= (u64)S->mem[S->sp++];
+				S->sp += (u64)S->mem[S->sp++];
                 S->mem[--S->sp] = retval;
 				break;
             }
@@ -166,6 +166,41 @@ void spy_run(spy_state* S, const u64* code) {
                     S->ip = (u64)code[S->ip++];
                 }
                 break;
+            // MALLOC
+            case 0x15:
+                S->mem[--S->sp] = spy_malloc(S, code[S->ip++]);
+                break;
+            case 0x16: {
+                f64 val = S->mem[S->sp++];
+                u64 addr = (u64)S->mem[S->sp++];
+                S->mem[addr] = val;
+                break;
+            }
 		}
 	}
+}
+
+void spy_runFromString(spy_state* S, const s8* code) {
+	u64 generated_code[65536];
+	u64 index = 0, bufptr = 0, codeptr = 0;
+	s8 buf[128];
+	while (1) {
+		if (code[index] == ' ' || code[index] == '\0') {
+			char* hexa = malloc(bufptr);
+			for (int i = 0; i < bufptr; i++) {
+				hexa[i] = buf[i];
+			}
+			bufptr = 0;
+			memset(buf, 0, sizeof(buf));
+			generated_code[codeptr++] = (char)strtol(hexa, NULL, 16);
+			free(hexa);
+            if (code[index] == '\0') {
+                break;
+            }
+		} else {
+			buf[bufptr++] = code[index];
+		}
+		index++;
+	}
+	spy_run(S, generated_code);
 }

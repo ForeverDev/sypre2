@@ -1,27 +1,12 @@
-// note that in the current version on Github, this
-// won't actually compile yet
-
 struct Vector3 {
     real x;
     real y;
     real z;
-}
+};
 
 func main : null = (string filepath) {
 
-    // different ways to declare/assign a variable
-    x : real;
-    x = 1.0;
+    a := 20;
+    b := a / 3;
 
-    y : real = 2.0;
-
-    z := 3.0;
-
-    // struct example
-    v : Vector3;
-    v.x = 3.0;
-    v.y = 4.0;
-    v.z = 5.0;
 }
-
-

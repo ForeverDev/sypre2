@@ -13,7 +13,7 @@ lex.token_grammar = {
     ["/"]       = "DIVIDE";
     ["%"]       = "MODULUS";
     ["="]       = "ASSIGN";
-    ["."]       = "CONCAT";
+    ["."]       = "GETMEMBER";
     [">"]       = "GT";
     ["<"]       = "LT";
     [">="]      = "GE";

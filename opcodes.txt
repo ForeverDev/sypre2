@@ -20,3 +20,26 @@ HEXCODE		OPCODE
 0x12        JMP
 0x13        JIT
 0x14        JIF
+0x15        MALLOC
+0x16        SETMEM
+
+["+"]       = "PLUS";
+["-"]       = "MINUS";
+["*"]       = "MULTIPLY";
+["/"]       = "DIVIDE";
+["%"]       = "MODULUS";
+["="]       = "ASSIGN";
+["."]       = "GETMEMBER";
+[">"]       = "GT";
+["<"]       = "LT";
+[">="]      = "GE";
+["<="]      = "LE";
+["=="]      = "EQ";
+["++"]      = "INCREMENT";
+["--"]      = "DECREMENT";
+["+="]      = "NADD";
+["-="]      = "NSUB";
+["*="]      = "NMUL";
+["/="]      = "NDIV";
+["%="]      = "NMOD";
+
