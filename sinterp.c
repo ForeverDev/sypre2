@@ -46,13 +46,15 @@ void spy_runtimeError(spy_state* S, const char* message) {
 
 void spy_dumpMemory(spy_state* S) {
 	printf("MEMORY DUMP:\n");
+	printf("---STACK---\n");
 	for (u64 i = S->sp; i < SIZE_MEM; i++) {
         if (i == SIZE_STACK) {
-            printf("STACK\n");
+            printf("---STACK---\n\n---MEMORY---\n");
         } else if (i <= SIZE_STACK || S->marks[i]) {
 			printf("0x%08llx: %F\n", i, S->mem[i]);
 		}
 	}
+	printf("---MEMORY---\n");
 }
 
 void spy_run(spy_state* S, const u64* code) {

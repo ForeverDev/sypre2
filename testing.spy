@@ -1,28 +1,23 @@
+struct Vector2 {
+	real x;
+	real y;
+}
+
 struct Vector3 {
-    real a;
-    real b;
-    real c;
+	real x;
+	real y;
+	real z;
 };
 
 func main : null = (string filepath) {
 
+	vec2 : Vector2;
+	vec2.x = 1;
+	vec2.y = 2;
 
-    c : Vector3;
-    c.a = 10 * 10;
-    c.b = 50;
-    c.c = 30;
+	vec3 : Vector3;
+	vec3.x = 3;
+	vec3.y = 4;
+	vec3.z = 5;
 
-    d : Vector3;
-    d.a = 1;
-    d.b = 2;
-    d.c = 5;
-
-    x : real = c.b * c.b;
-    y : real = x;
-    z : real = d.a + c.b;
-
-	z = 10 * 20 + d.c;
-	y = 42;
-
-	d.c = 7;
 }

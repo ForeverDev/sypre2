@@ -23,6 +23,10 @@ compile.pres = {
 
     ["ASSIGN"]      = 0;
 
+	["GT"]			= 1;
+	["GE"]			= 1;
+	["LT"]			= 1;
+	["LE"]			= 1;
 
     ["PLUS"]        = 2;
     ["MINUS"]       = 2;
@@ -241,11 +245,10 @@ function compile:compileExpression(expression, just_get_rpn)
                 if other then
 					if istag(rpn[1]) then
 						self:push("PUSHNUM", l.offset)
-						table.insert(tops, {top = toptype.NUMBER, tok = v})
 					else
 						self:push("PUSHLOCAL", l.offset)
-						table.insert(tops, {top = toptype.NUMBER, tok = v})
 					end	
+					table.insert(tops, {top = toptype.NUMBER, tok = v})
                 end
             end
         elseif v.typeof == "ASSIGN" then
@@ -270,6 +273,9 @@ function compile:compileExpression(expression, just_get_rpn)
 		elseif v.typeof == "DIVIDE" then
 			pop()
 			self:push("DIV")
+		elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" then
+			pop()
+			self:push(v.typeof)
         elseif v.typeof == "NUMBER" then
             table.insert(tops, {top = toptype.NUMBER, tok = v})
             self:push("PUSHNUM", v.word)
