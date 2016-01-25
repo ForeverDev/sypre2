@@ -78,6 +78,9 @@ function compile:dump()
     while i <= #self.bytecode do
         local opcode = self:getOpcode(tonumber(self.bytecode[i]))
         if opcode then
+			if opcode[1] ~= "LABEL" then
+				io.write("\t")
+			end
             io.write(opcode[1] .. " ")
             if opcode[2] > 0 then
                 for j = 1, opcode[2] do

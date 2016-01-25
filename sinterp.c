@@ -146,7 +146,8 @@ void spy_run(spy_state* S, const u64* code) {
             // SETLOCAL
             case 0x0e: {
 				f64 val = S->mem[S->sp++];
-                S->mem[S->fp - (u64)S->mem[S->sp++]] = val;
+				u64 addr = (u64)S->mem[S->sp++];
+                S->mem[S->fp - addr] = val;
                 break;
 			}
             // PUSHARG
