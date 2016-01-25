@@ -13,7 +13,7 @@ compile.opcodes = {
     {"PUSHPTR", 0, 0},      {"POP", 0, -1},             {"ADD", 0, -1},
     {"SUB", 0, -1},         {"MUL", 0, -1},             {"DIV", 0, -1},
     {"AND", 0, -1},         {"OR", 0, -1},              {"NOT", 0, -1},
-    {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 1, -1},
+    {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 0, -2},
     {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -3},
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0}
@@ -231,7 +231,7 @@ function compile:compileExpression(expression, just_get_rpn)
                             self:push("GETMEM")
                             table.insert(tops, {top = toptype.NUMBER, tok = v})
                         end
-                        i = i + 2
+                        i = i + 1
                     else
                         other = true
                     end
@@ -239,7 +239,13 @@ function compile:compileExpression(expression, just_get_rpn)
                     other = true
                 end
                 if other then
-                    self:push("PUSHLOCAL", l.offset)
+					if istag(rpn[1]) then
+						self:push("PUSHNUM", l.offset)
+						table.insert(tops, {top = toptype.NUMBER, tok = v})
+					else
+						self:push("PUSHLOCAL", l.offset)
+						table.insert(tops, {top = toptype.NUMBER, tok = v})
+					end	
                 end
             end
         elseif v.typeof == "ASSIGN" then
@@ -249,9 +255,11 @@ function compile:compileExpression(expression, just_get_rpn)
             if tops[#tops - 1].top == toptype.POINTER then
                 self:push("SETMEM")
             -- TODO get SETLOCAL to work
+			-- possible solution: make SETLOCAL get the address
+			-- to set from the top of the stack, instead of from
+			-- a code argument
             elseif tops[#tops - 1].top == toptype.NUMBER then
-                local l = self:getLocal(tops[#tops - 1].tok.word)
-                self:push("SETLOCAL", l.offset)
+                self:push("SETLOCAL")
             end
             pop()
         elseif v.typeof == "PLUS" then

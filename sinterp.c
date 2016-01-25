@@ -129,9 +129,11 @@ void spy_run(spy_state* S, const u64* code) {
                 S->mem[--S->sp] = S->mem[S->fp - code[S->ip++]];
                 break;
             // SETLOCAL
-            case 0x0e:
-                S->mem[S->fp - code[S->ip++]] = S->mem[S->sp++];
+            case 0x0e: {
+				f64 val = S->mem[S->sp++];
+                S->mem[S->fp - (u64)S->mem[S->sp++]] = val;
                 break;
+			}
             // PUSHARG
             case 0x0f:
                 S->mem[--S->sp] = S->mem[S->fp + 3 + code[S->ip++]];

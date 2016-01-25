@@ -20,4 +20,9 @@ func main : null = (string filepath) {
     x : real = c.b * c.b;
     y : real = x;
     z : real = d.a + c.b;
+
+	z = 10 * 20 + d.c;
+	y = 42;
+
+	d.c = 7;
 }
