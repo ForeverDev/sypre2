@@ -58,6 +58,14 @@ void spy_dumpMemory(spy_state* S) {
 }
 
 void spy_run(spy_state* S, const u64* code) {
+	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00) {
+		const char opcode = (u8)code[S->ip];
+		S->ip++;
+		if (opcode == 0x18) {
+			S->labels[(u64)code[S->ip++]] = S->ip + 1;
+		}
+	}
+	S->ip = 0;
 	while (1) {
 		if (S->sp <= 0) {
 			spy_runtimeError(S, "stack overflow");
@@ -162,18 +170,18 @@ void spy_run(spy_state* S, const u64* code) {
             }
             // JMP
             case 0x12:
-                S->ip = (u64)code[S->ip++];
+                S->ip = S->labels[(u64)code[S->ip++]];
                 break;
             // JIT
             case 0x13:
                 if (S->mem[S->sp++]) {
-                    S->ip = (u64)code[S->ip++];
+                    S->ip = S->labels[(u64)code[S->ip++]];
                 }
                 break;
             // JIF
             case 0x14:
                 if (!S->mem[S->sp++]) {
-                    S->ip = (u64)code[S->ip++];
+                    S->ip = S->labels[(u64)code[S->ip++]];
                 }
                 break;
             // MALLOC
@@ -191,6 +199,10 @@ void spy_run(spy_state* S, const u64* code) {
             case 0x17:
                 S->mem[--S->sp] = S->mem[(u64)(S->mem[S->sp++])];
                 break;
+			// LABEL
+			case 0x18:
+				S->ip++;
+				break;
 
 		}
 	}

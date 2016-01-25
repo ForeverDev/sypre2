@@ -16,7 +16,8 @@ compile.opcodes = {
     {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 0, -2},
     {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -3},
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
-    {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0}
+    {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
+	{"LABEL", 1, 0}
 }
 
 compile.pres = {
@@ -27,6 +28,7 @@ compile.pres = {
 	["GE"]			= 1;
 	["LT"]			= 1;
 	["LE"]			= 1;
+	["EQ"]			= 1;
 
     ["PLUS"]        = 2;
     ["MINUS"]       = 2;
@@ -45,6 +47,7 @@ function compile:init(tree, datatypes)
     self.at                     = tree[1]
     self.atblock                = tree[1].block
     self.offset                 = 0
+	self.labels					= 0
     self.done                   = false
     self.bytecode               = {}
     self.locals                 = {}
@@ -273,6 +276,9 @@ function compile:compileExpression(expression, just_get_rpn)
 		elseif v.typeof == "DIVIDE" then
 			pop()
 			self:push("DIV")
+		elseif v.typeof == "EQ" then
+			pop()
+			self:push("EQ")
 		elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" then
 			pop()
 			self:push(v.typeof)
@@ -295,8 +301,15 @@ function compile:compileVariableDeclaration()
 end
 
 function compile:compileVariableAssignment()
-    self:compileExpression(self.at.expression);
+    self:compileExpression(self.at.expression)
     self:pushLocal(self.at.identifier, self.at.datatype)
+end
+
+function compile:compileIf()
+	self:compileExpression(self.at.condition)
+	self:push("JIF", self.labels)
+	self:push("LABEL", self.labels)
+	self.labels = self.labels + 1
 end
 
 function compile:branch()
@@ -321,6 +334,8 @@ function compile:branch()
         self:compileVariableDeclaration()
     elseif t == "VARIABLE_ASSIGNMENT" then
         self:compileVariableAssignment()
+	elseif t == "IF" then
+		self:compileIf()
     elseif t == "EXPRESSION" then
         self:compileExpression(self.at.expression)
     end

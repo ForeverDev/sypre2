@@ -23,6 +23,7 @@ HEXCODE		OPCODE
 0x15        MALLOC
 0x16        SETMEM
 0x17        GETMEM
+0x18		LABEL
 
 ["+"]       = "PLUS";
 ["-"]       = "MINUS";

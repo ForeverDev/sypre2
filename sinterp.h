@@ -21,6 +21,7 @@ typedef struct spy_state {
 	u64			ip;
 	u64			sp;
 	u64			fp;
+	u64			labels[1024];
 	f64			mem[SIZE_MEM];
     // note the stack is not marked, only
     // memory is
