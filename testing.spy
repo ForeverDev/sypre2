@@ -1,12 +1,23 @@
 struct Vector3 {
-    real x;
-    real y;
-    real z;
+    real a;
+    real b;
+    real c;
 };
 
 func main : null = (string filepath) {
 
-    a := 20;
-    b := a / 3;
 
+    c : Vector3;
+    c.a = 10 * 10;
+    c.b = 50;
+    c.c = 30;
+
+    d : Vector3;
+    d.a = 1;
+    d.b = 2;
+    d.c = 5;
+
+    x : real = c.b * c.b;
+    y : real = x;
+    z : real = d.a + c.b;
 }

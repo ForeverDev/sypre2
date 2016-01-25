@@ -27,8 +27,8 @@ u64 spy_malloc(spy_state* S, u64 size) {
 			cursize = 0;
 		}
 		if (cursize == size) {
-            for (u64 j = memptr; j < memptr + size; j++) {
-                S->marks[i] = 1;
+            for (u64 j = memptr; j <= memptr + size; j++) {
+                S->marks[j] = 1;
             }
 			return memptr;
 		}
@@ -47,7 +47,9 @@ void spy_runtimeError(spy_state* S, const char* message) {
 void spy_dumpMemory(spy_state* S) {
 	printf("MEMORY DUMP:\n");
 	for (u64 i = S->sp; i < SIZE_MEM; i++) {
-		if ((i <= SIZE_STACK || S->marks[i]) && i != SIZE_STACK) {
+        if (i == SIZE_STACK) {
+            printf("STACK\n");
+        } else if (i <= SIZE_STACK || S->marks[i]) {
 			printf("0x%08llx: %F\n", i, S->mem[i]);
 		}
 	}
@@ -91,17 +93,21 @@ void spy_run(spy_state* S, const u64* code) {
 				S->mem[--S->sp] = S->mem[S->sp++] + S->mem[S->sp++];
 				break;
             // SUB
-			case 0x06:
-				S->mem[--S->sp] = S->mem[S->sp++] - S->mem[S->sp++];
-				break;
+			case 0x06: {
+                f64 b = S->mem[S->sp++];
+                S->mem[--S->sp] = S->mem[S->sp++] - b;
+                break;
+            }
             // MUL
 			case 0x07:
 				S->mem[--S->sp] = S->mem[S->sp++] * S->mem[S->sp++];
 				break;
             // DIV
-			case 0x08:
-				S->mem[--S->sp] = S->mem[S->sp++] / S->mem[S->sp++];
-				break;
+			case 0x08: {
+                f64 b = S->mem[S->sp++];
+                S->mem[--S->sp] = S->mem[S->sp++] / b;
+                break;
+            }
             // AND
 			case 0x09:
 				S->mem[--S->sp] = S->mem[S->sp++] && S->mem[S->sp++];
@@ -170,12 +176,18 @@ void spy_run(spy_state* S, const u64* code) {
             case 0x15:
                 S->mem[--S->sp] = spy_malloc(S, code[S->ip++]);
                 break;
+            // SET MEM
             case 0x16: {
                 f64 val = S->mem[S->sp++];
                 u64 addr = (u64)S->mem[S->sp++];
                 S->mem[addr] = val;
                 break;
             }
+            // GET MEM
+            case 0x17:
+                S->mem[--S->sp] = S->mem[(u64)(S->mem[S->sp++])];
+                break;
+
 		}
 	}
 }

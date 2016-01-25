@@ -211,11 +211,11 @@ function parse:parseStruct()
                     memid and "null" or memid.word
                 )
             end
-            table.insert(members, {
+            members[finish[i + 1].word] = {
                 datatype = v.word;
-                identifier = finish[i + 1];
+                identifier = finish[i + 1].word;
                 offset = sizeof;
-            })
+            }
             sizeof = sizeof + 1
             i = i + 2
             if not finish[i] or finish[i].typeof ~= "SEMICOLON" then

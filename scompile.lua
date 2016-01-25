@@ -14,18 +14,21 @@ compile.opcodes = {
     {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 1, -1},
     {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -3},
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
-    {"MALLOC", 1, 1},       {"SETMEM", 0, -2}
+    {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0}
 }
 
 compile.pres = {
 
     ["ASSIGN"]      = 0;
 
-    ["PLUS"]        = 1;
-    ["MINUS"]       = 1;
 
-    ["MULTIPLY"]    = 2;
-    ["DIVIDE"]      = 2;
+    ["PLUS"]        = 2;
+    ["MINUS"]       = 2;
+
+    ["MULTIPLY"]    = 3;
+    ["DIVIDE"]      = 3;
+
+    ["GETMEMBER"]   = 50;
 
 
 }
@@ -122,7 +125,7 @@ function compile:getLocal(identifier)
         end
         for i, v in ipairs(self.locals[now]) do
             if v.identifier == identifier then
-                return v.offset
+                return v
             end
         end
         if not now.parent_chunk then
@@ -136,6 +139,29 @@ function compile:compileExpression(expression, just_get_rpn)
     local rpn = {}
     local operators = {}
     local i = 1
+    local function tag(t)
+        t.is_being_assigned = true
+    end
+    local function untag(t)
+        t.is_being_assigned = nil
+    end
+    local function istag(t)
+        return t.is_being_assigned
+    end
+    local isassign = false
+    local stop = nil
+    for i, v in ipairs(expression) do
+        if v.typeof == "ASSIGN" then
+            isassign = true
+            stop = i
+            break
+        end
+    end
+    if isassign then
+        for i = 1, stop - 1 do
+            tag(expression[i])
+        end
+    end
     while i <= #expression do
         local v = expression[i]
         if v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" then
@@ -159,83 +185,97 @@ function compile:compileExpression(expression, just_get_rpn)
         table.insert(rpn, table.remove(operators, #operators))
     end
     if just_get_rpn then
+        for i, v in ipairs(expression) do
+            untag(v)
+        end
         return rpn
     end
-    local queue = {}
-    local hasop = false
-    local function figure(v)
-        local args = {}
-        if hasop then
-            args[1] = table.remove(queue, #queue)
-        else
-            args[1] = table.remove(queue, #queue)
-            args[2] = table.remove(queue, #queue)
-            hasop = true
+
+    local i = 1
+    local lastp = nil
+    local toptype = {
+        ["POINTER"] = 1;
+        ["NUMBER"] = 2;
+    }
+    local tops = {}
+    local function pop()
+        local last = tops[#tops]
+        for i = 1, 2 do
+            table.remove(tops, #tops)
         end
-        for q, k in ipairs(args) do
-            if k.typeof == "IDENTIFIER" then
-                self:push("PUSHLOCAL", self:getLocal(k.word))
-            elseif k.typeof == "NUMBER" then
-                self:push("PUSHNUM", k.word)
-            end
-        end
-        local op = (
-            v.typeof == "PLUS" and "ADD" or
-            v.typeof == "MINUS" and "SUB" or
-            v.typeof == "MULTIPLY" and "MUL" or
-            v.typeof == "DIVIDE" and "DIV" or nil
-        )
-        if op then
-            self:push(op)
-        end
+        table.insert(tops, last)
     end
-    local function push(v)
-        local t = v.typeof
-        if t == "IDENTIFIER" or t == "NUMBER" or t == "STRING" then
-            table.insert(queue, v)
-        else
-            if t == "ASSIGN" then
-                if hasop then
-                    local a = table.remove(queue, #queue)
-                    local l = self:getLocal(a.word)
-                    self:assertLocal(l, a.word)
-                    self:push("SETLOCAL", l)
-                    --self:push("PUSHLOCAL", l)
-                else
-                    local b = table.remove(queue, #queue)
-                    local a = table.remove(queue, #queue)
-                    if b.typeof == "NUMBER" then
-                        self:push("PUSHNUM", b.word)
-                    elseif b.typeof == "IDENTIFIER" then
-                        local l = self:getLocal(b.word)
-                        self:assertLocal(l, b.word)
-                        self:push("PUSHLOCAL", l)
+    while i <= #rpn do
+        local v = rpn[i]
+        if v.typeof == "IDENTIFIER" then
+            local l = self:getLocal(v.word)
+            if l then
+                lastp = l
+            end
+            if not l and not lastp then
+                self:assertLocal(l, v.word)
+            end
+            if l then
+                local other = false
+                if rpn[i + 2] then
+                    if rpn[i + 1].typeof == "IDENTIFIER" and rpn[i + 2].typeof == "GETMEMBER" then
+                        local memoffset = self.datatypes[l.datatype].members[rpn[i + 1].word].offset
+                        self:push("PUSHLOCAL", l.offset)
+                        self:push("PUSHNUM", memoffset)
+                        self:push("ADD")
+                        if istag(rpn[i]) then
+                            table.insert(tops, {top = toptype.POINTER, tok = v})
+                        else
+                            self:push("GETMEM")
+                            table.insert(tops, {top = toptype.NUMBER, tok = v})
+                        end
+                        i = i + 2
+                    else
+                        other = true
                     end
-                    local l = self:getLocal(a.word)
-                    self:assertLocal(l, a.word)
-                    self:push("SETLOCAL", l)
+                else
+                    other = true
                 end
-            else
-                figure(v)
+                if other then
+                    self:push("PUSHLOCAL", l.offset)
+                end
             end
-            hasop = true
+        elseif v.typeof == "ASSIGN" then
+            if not tops[#tops - 1] then
+                break
+            end
+            if tops[#tops - 1].top == toptype.POINTER then
+                self:push("SETMEM")
+            -- TODO get SETLOCAL to work
+            elseif tops[#tops - 1].top == toptype.NUMBER then
+                local l = self:getLocal(tops[#tops - 1].tok.word)
+                self:push("SETLOCAL", l.offset)
+            end
+            pop()
+        elseif v.typeof == "PLUS" then
+            pop()
+            self:push("ADD")
+        elseif v.typeof == "MINUS" then
+            pop()
+            self:push("SUB")
+        elseif v.typeof == "MULTIPLY" then
+            pop()
+            self:push("MUL")
+        elseif v.typeof == "NUMBER" then
+            table.insert(tops, {top = toptype.NUMBER, tok = v})
+            self:push("PUSHNUM", v.word)
         end
+        i = i + 1
     end
-    if #rpn == 1 then
-        table.insert(queue, rpn[1])
-        figure(rpn[1])
-        return
-    end
-    for i, v in ipairs(rpn) do
-        push(v)
-    end
-    for i, v in ipairs(queue) do
-        figure(v)
-    end
+
 end
 
 function compile:compileVariableDeclaration()
-    self:push("PUSHNUM", 0);
+    if self.at.datatype == "real" or self.at.datatype == "string" then
+        self:push("PUSHNUM", 0);
+    else
+        self:push("MALLOC", self.datatypes[self.at.datatype].sizeof)
+    end
     self:pushLocal(self.at.identifier, self.at.datatype)
 end
 
