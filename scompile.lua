@@ -254,10 +254,6 @@ function compile:compileExpression(expression, just_get_rpn)
             end
             if tops[#tops - 1].top == toptype.POINTER then
                 self:push("SETMEM")
-            -- TODO get SETLOCAL to work
-			-- possible solution: make SETLOCAL get the address
-			-- to set from the top of the stack, instead of from
-			-- a code argument
             elseif tops[#tops - 1].top == toptype.NUMBER then
                 self:push("SETLOCAL")
             end
@@ -271,6 +267,9 @@ function compile:compileExpression(expression, just_get_rpn)
         elseif v.typeof == "MULTIPLY" then
             pop()
             self:push("MUL")
+		elseif v.typeof == "DIVIDE" then
+			pop()
+			self:push("DIV")
         elseif v.typeof == "NUMBER" then
             table.insert(tops, {top = toptype.NUMBER, tok = v})
             self:push("PUSHNUM", v.word)
