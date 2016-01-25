@@ -3,6 +3,8 @@
 -- returns:     Spyre bytecode
 -- gives to:    main.c
 
+-- find . -name '*.c' -o -name '*.h' -o -name '*.lua' -o -name '*.spy' | xargs wc -l
+
 local compile = {}
 
 -- format: <name> <numargs (-1 = TBD)> <stack offset>
