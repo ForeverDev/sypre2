@@ -54,7 +54,12 @@ void spy_dumpMemory(spy_state* S) {
 			printf("0x%08llx: %F\n", i, S->mem[i]);
 		}
 	}
-	printf("---MEMORY---\n");
+	printf("---MEMORY---\n\n");
+	printf("---POINTERS---\n");
+	printf("ip: 0x%04llx\n", S->ip);
+	printf("sp: 0x%04llx\n", S->sp);
+	printf("fp: 0x%04llx\n", S->fp);
+	printf("---POINTERS---\n");
 }
 
 void spy_run(spy_state* S, const u64* code) {
@@ -176,13 +181,17 @@ void spy_run(spy_state* S, const u64* code) {
             case 0x13:
                 if (S->mem[S->sp++]) {
                     S->ip = S->labels[(u64)code[S->ip++]];
-                }
+                } else {
+					S->ip++;
+				}
                 break;
             // JIF
             case 0x14:
                 if (!S->mem[S->sp++]) {
                     S->ip = S->labels[(u64)code[S->ip++]];
-                }
+                } else {
+					S->ip++;
+				}
                 break;
             // MALLOC
             case 0x15:
@@ -203,6 +212,26 @@ void spy_run(spy_state* S, const u64* code) {
 			case 0x18:
 				S->ip++;
 				break;
+			// GT
+			case 0x19: {
+				f64 val = S->mem[S->sp++];
+				S->mem[--S->sp] = S->mem[S->sp++] > val;
+			}
+			// GE
+			case 0x1a: {
+				f64 val = S->mem[S->sp++];
+				S->mem[--S->sp] = S->mem[S->sp++] >= val;
+			}
+			// LT
+			case 0x1b: {
+				f64 val = S->mem[S->sp++];
+				S->mem[--S->sp] = S->mem[S->sp++] < val;
+			}
+			// LE
+			case 0x1c: {
+				f64 val = S->mem[S->sp++];
+				S->mem[--S->sp] = S->mem[S->sp++] <= val;
+			}
 
 		}
 	}

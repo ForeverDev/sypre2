@@ -17,7 +17,8 @@ compile.opcodes = {
     {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -3},
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
-	{"LABEL", 1, 0}
+	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
+	{"LT", 0, -1},			{"LE", 0, -1}
 }
 
 compile.pres = {
@@ -46,12 +47,14 @@ function compile:init(tree, datatypes)
     self.datatypes              = datatypes
     self.at                     = tree[1]
     self.atblock                = tree[1].block
+	self.insert_point			= 1
     self.offset                 = 0
 	self.labels					= 0
     self.done                   = false
     self.bytecode               = {}
     self.locals                 = {}
     self.locals[self.atblock]   = {}
+	self.queue					= {}
 end
 
 function compile:throw(msgformat, ...)
@@ -64,6 +67,10 @@ function compile:assertLocal(l, name)
     if not l then
         self:throw("Attempt to use non-existant variable '%s'", name)
     end
+end
+
+function compile:lock()
+	self.insert_point = #self.bytecode
 end
 
 function compile:dump()
@@ -110,12 +117,24 @@ function compile:push(...)
     for i, v in ipairs{...} do
         local hex = self:getHexcode(v)
         if hex then
-            table.insert(self.bytecode, self:toHex(hex))
+            table.insert(self.bytecode, self.insert_point, self:toHex(hex))
             self.offset = self.offset + self:getOpcode(hex)[3]
         else
-            table.insert(self.bytecode, self:toHex(v))
+            table.insert(self.bytecode, self.insert_point, self:toHex(v))
         end
+		self.insert_point = (self.insert_point or 1) + 1
     end
+end
+
+function compile:addToQueue(...)
+	table.insert(self.queue, {...})
+end
+
+function compile:popFromQueue()
+	if #self.queue == 0 then
+		return
+	end
+	self:push(unpack(table.remove(self.queue, #self.queue)))
 end
 
 function compile:pushLocal(identifier, datatype)
@@ -162,12 +181,12 @@ function compile:compileExpression(expression, just_get_rpn)
     for i, v in ipairs(expression) do
         if v.typeof == "ASSIGN" then
             isassign = true
-            stop = i
+            stop = i - 1
             break
         end
     end
     if isassign then
-        for i = 1, stop - 1 do
+        for i = 1, stop do
             tag(expression[i])
         end
     end
@@ -232,7 +251,7 @@ function compile:compileExpression(expression, just_get_rpn)
                         self:push("PUSHLOCAL", l.offset)
                         self:push("PUSHNUM", memoffset)
                         self:push("ADD")
-                        if istag(rpn[i]) then
+                        if istag(v) then
                             table.insert(tops, {top = toptype.POINTER, tok = v})
                         else
                             self:push("GETMEM")
@@ -246,7 +265,7 @@ function compile:compileExpression(expression, just_get_rpn)
                     other = true
                 end
                 if other then
-					if istag(rpn[1]) then
+					if istag(v) then
 						self:push("PUSHNUM", l.offset)
 					else
 						self:push("PUSHLOCAL", l.offset)
@@ -276,10 +295,7 @@ function compile:compileExpression(expression, just_get_rpn)
 		elseif v.typeof == "DIVIDE" then
 			pop()
 			self:push("DIV")
-		elseif v.typeof == "EQ" then
-			pop()
-			self:push("EQ")
-		elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" then
+		elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" or v.typeof == "EQ" then
 			pop()
 			self:push(v.typeof)
         elseif v.typeof == "NUMBER" then
@@ -288,6 +304,9 @@ function compile:compileExpression(expression, just_get_rpn)
         end
         i = i + 1
     end
+	for i, v in ipairs(expression) do
+		untag(v)
+	end
 
 end
 
@@ -308,7 +327,16 @@ end
 function compile:compileIf()
 	self:compileExpression(self.at.condition)
 	self:push("JIF", self.labels)
+	self:addToQueue("LABEL", self.labels)
+	self.labels = self.labels + 1
+end
+
+function compile:compileWhile()
 	self:push("LABEL", self.labels)
+	self.labels = self.labels + 1
+	self:compileExpression(self.at.condition)
+	self:push("JIF", self.labels)
+	self:addToQueue("JMP", self.labels - 1, "LABEL", self.labels)
 	self.labels = self.labels + 1
 end
 
@@ -318,7 +346,11 @@ function compile:branch()
         self.at = self.at.block[1]
     else
         while not self.at.parent_block[self.at.block_index + 1] do
+			for i = 1, #self.locals[self.at.parent_block] do
+				self:push("POP")
+			end
             self.at = self.at.parent_block.parent_chunk
+			self:popFromQueue()
             if not self.at.parent_block then
                 self.done = true
                 return
@@ -336,6 +368,8 @@ function compile:branch()
         self:compileVariableAssignment()
 	elseif t == "IF" then
 		self:compileIf()
+	elseif t == "WHILE" then
+		self:compileWhile()
     elseif t == "EXPRESSION" then
         self:compileExpression(self.at.expression)
     end

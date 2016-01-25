@@ -1,13 +1,15 @@
-struct Vector2 {
+struct Vector3 {
 	real x;
 	real y;
+	real z;
 }
 
 func main : null = (string filepath) {
 
-	x : real = 10;
+	x := 10;
 
-	if (x == 10) {
-
+	while (x > 0) {
+		x = x - 1;
 	}
+
 }

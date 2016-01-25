@@ -24,6 +24,10 @@ HEXCODE		OPCODE
 0x16        SETMEM
 0x17        GETMEM
 0x18		LABEL
+0x19		GT
+0x1a		GE
+0x1b		LT
+0x1c		LE
 
 ["+"]       = "PLUS";
 ["-"]       = "MINUS";
