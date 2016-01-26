@@ -162,8 +162,7 @@ void spy_run(spy_state* S, const u64* code) {
             // SETLOCAL
             case 0x0e: {
 				f64 val = S->mem[S->sp++];
-				u64 addr = (u64)S->mem[S->sp++];
-                S->mem[S->fp - addr] = val;
+                S->mem[S->fp - code[S->ip++]] = val;
                 break;
 			}
             // PUSHARG
@@ -172,7 +171,7 @@ void spy_run(spy_state* S, const u64* code) {
                 break;
             // CALL
             case 0x10: {
-                u64 addr = code[S->ip++];
+                u64 addr = S->labels[code[S->ip++]];
                 S->mem[--S->sp] = (f64)code[S->ip++];
                 S->mem[--S->sp] = (f64)S->fp;
                 S->mem[--S->sp] = (f64)S->ip;
@@ -216,16 +215,14 @@ void spy_run(spy_state* S, const u64* code) {
                 break;
             // SET MEM
             case 0x16: {
-                f64 val = S->mem[S->sp++];
                 u64 addr = (u64)S->mem[S->sp++];
+                f64 val = S->mem[S->sp++];
                 S->mem[addr] = val;
                 break;
             }
             // GET MEM
             case 0x17:
-                //printf("getmem ip %lld\n", S->sp);
-                S->mem[--S->sp] = S->mem[(u64)(S->mem[S->sp++])];
-                //printf("endgetmem\n");
+                S->mem[--S->sp] = S->mem[(u64)S->mem[S->sp++]];
                 break;
 			// LABEL
 			case 0x18:

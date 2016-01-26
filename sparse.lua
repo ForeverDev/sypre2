@@ -62,6 +62,7 @@ end
 function parse:createChunk(typeof, has_block)
     local chunk = {}
     chunk.typeof = typeof
+    chunk.line = self:gettok().line
     chunk.block = has_block and {parent_chunk = chunk} or nil
     chunk.parent_block = self.curblock
     chunk.block_index = #self.curblock + 1
@@ -158,25 +159,23 @@ function parse:parseFunc()
     self:inc(3)
     local args, raw = self:parseExpressionUntil("CLOSEPAR", nil)
     local i = 1
-    while true do
-        local argtype, argid;
-        self:checkDatatype(args[i].word)
-        argtype = args[i].word
-        i = i + 1
-        if args[i].typeof ~= "IDENTIFIER" then
-            self:throw("Expected function parameter name, got '%s'", args[i].typeof)
+    while i <= #args do
+        local arg = {}
+        arg.modifiers = {}
+        while args[i].typeof == "MODIFIER" do
+            arg.modifiers[args[i].word] = true
+            i = i + 1
         end
-        argid = args[i].word
-        table.insert(chunk.arguments, {
-            datatype = argtype;
-            identifier = argid;
-        })
-        chunk.nargs = chunk.nargs + 1
+        arg.identifier = args[i].word
+        -- skip semicolon
+        i = i + 2
+        arg.datatype = args[i].word
+        arg.offset = #chunk.arguments + 1
+        self:checkDatatype(arg.datatype)
         i = i + 1
-        if not args[i] then
+        table.insert(chunk.arguments, arg)
+        if i > #args or args[i].typeof == "CLOSEPAR" then
             break
-        elseif args[i].typeof ~= "COMMA" then
-            self:throw("Expected comma in function parameter list, got '%s'", args[i].typeof)
         end
         i = i + 1
     end
@@ -299,7 +298,7 @@ function parse:dump(chunk, tabs)
     end
     for i, v in pairs(chunk) do
         if i ~= "block" and i ~= "typeof" and i ~= "parent_block" and type(v) ~= "table" then
-            print(tab .. i .. ": " .. v)
+            print(tab .. i .. ": " .. tostring(v))
         end
     end
     for i, v in pairs(chunk) do
@@ -361,10 +360,33 @@ function parse:main()
         elseif t.typeof ~= "OPENCURL" then
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
             if #expression > 0 then
-                local chunk = self:createChunk("EXPRESSION", false)
-                chunk.expression = expression
-                chunk.expression.raw = raw
-                self:pushIntoCurblock(chunk)
+                local equals = nil
+                for i, v in ipairs(expression) do
+                    if v.typeof == "ASSIGN" then
+                        equals = i
+                        break
+                    end
+                end
+                if equals then
+                    local left = {}
+                    local right = {}
+                    for i = 1, equals - 1 do
+                        table.insert(left, expression[i])
+                    end
+                    for i = equals + 1, #expression do
+                        table.insert(right, expression[i])
+                    end
+                    local chunk = self:createChunk("VARIABLE_REASSIGNMENT", false)
+                    chunk.left = left
+                    chunk.right = right
+                    chunk.expression = {raw = raw}
+                    self:pushIntoCurblock(chunk)
+                else
+                    local chunk = self:createChunk("EXPRESSION", false)
+                    chunk.expression = expression
+                    chunk.expression.raw = raw
+                    self:pushIntoCurblock(chunk)
+                end
             end
         end
         self:inc()

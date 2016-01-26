@@ -13,8 +13,8 @@ compile.opcodes = {
     {"PUSHPTR", 0, 0},      {"POP", 0, -1},             {"ADD", 0, -1},
     {"SUB", 0, -1},         {"MUL", 0, -1},             {"DIV", 0, -1},
     {"AND", 0, -1},         {"OR", 0, -1},              {"NOT", 0, -1},
-    {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 0, -2},
-    {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -3},
+    {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 1, -2},
+    {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -2},
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
@@ -48,7 +48,6 @@ function compile:init(tree, datatypes)
     self.datatypes              = datatypes
     self.at                     = tree[1]
     self.atblock                = tree[1].block
-	self.insert_point			= 1
     self.offset                 = 0
 	self.labels					= 0
     self.done                   = false
@@ -58,11 +57,12 @@ function compile:init(tree, datatypes)
 	self.queue					= {}
     self.loop_ends              = {}
     self.loop_starts            = {}
+    self.funcs                  = {}
 end
 
 function compile:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
-    print(string.format("\nSPYRE COMPILE ERROR: \n\tMESSAGE: %s\n", message))
+    print(string.format("\nSPYRE COMPILE ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self.at.line))
     os.exit()
 end
 
@@ -70,10 +70,6 @@ function compile:assertLocal(l, name)
     if not l then
         self:throw("Attempt to use non-existant variable '%s'", name)
     end
-end
-
-function compile:lock()
-	self.insert_point = #self.bytecode
 end
 
 function compile:dump()
@@ -116,25 +112,48 @@ function compile:getOpcode(hexcode)
 end
 
 function compile:toHex(n)
-    return string.format("0x%04x", tonumber(n))
+    n = tonumber(n)
+    if n < 0 then
+        -- -1 for null pointer
+        return string.format("0x%04x", 0xbff0000000000000 + n)
+    end
+    return string.format("0x%04x", n)
 end
 
 function compile:push(...)
-    for i, v in ipairs{...} do
+    local a = {...}
+    for i, v in ipairs(a) do
         local hex = self:getHexcode(v)
         if hex then
-            table.insert(self.bytecode, self.insert_point, self:toHex(hex))
-            self.offset = self.offset + self:getOpcode(hex)[3]
+            table.insert(self.bytecode, self:toHex(hex))
+            if v == "CALL" then
+                self.offset = self.offset - tonumber(a[i + 2])
+            else
+                self.offset = self.offset + self:getOpcode(hex)[3]
+            end
         else
-            table.insert(self.bytecode, self.insert_point, self:toHex(v))
+            table.insert(self.bytecode, self:toHex(v))
         end
-		self.insert_point = (self.insert_point or 1) + 1
     end
 end
 
 function compile:addToQueue(...)
 	table.insert(self.queue, {...})
 end
+
+function compile:addToCurrentQueue(...)
+    for i, v in ipairs{...} do
+        table.insert(self.queue[#self.queue], v)
+    end
+end
+
+function compile:addToFrontCurrentQueue(...)
+    local a = {...}
+    for i = #a, 1, -1 do
+        table.insert(self.queue[#self.queue], 1, a[i])
+    end
+end
+
 
 function compile:popFromQueue()
 	if #self.queue == 0 then
@@ -143,13 +162,9 @@ function compile:popFromQueue()
 	self:push(unpack(table.remove(self.queue, #self.queue)))
 end
 
-function compile:pushLocal(identifier, datatype, modifiers)
-    table.insert(self.locals[self.atblock], {
-        identifier = identifier,
-        offset = self.offset,
-        datatype = datatype,
-        modifiers = modifiers
-    })
+function compile:pushLocal(l)
+    l.offset = self.offset
+    table.insert(self.locals[self.atblock], l)
 end
 
 function compile:getLocal(identifier)
@@ -174,32 +189,38 @@ function compile:compileExpression(expression, just_get_rpn)
     local rpn = {}
     local operators = {}
     local i = 1
-    local function tag(t)
-        t.is_being_assigned = true
-    end
-    local function untag(t)
-        t.is_being_assigned = nil
-    end
-    local function istag(t)
-        return t.is_being_assigned
-    end
-    local isassign = false
-    local stop = nil
-    for i, v in ipairs(expression) do
-        if v.typeof == "ASSIGN" then
-            isassign = true
-            stop = i - 1
-            break
-        end
-    end
-    if isassign then
-        for i = 1, stop do
-            tag(expression[i])
-        end
-    end
     while i <= #expression do
         local v = expression[i]
-        if v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" then
+        if v.typeof == "IDENTIFIER" and expression[i + 1] and expression[i + 1].typeof == "OPENPAR" then
+            local node = {
+                typeof = "FUNCTION_CALL";
+                arguments = {};
+                func = self.funcs[v.word]
+            }
+            local args = {}
+            local expr = {}
+            local count = 1
+            i = i + 2
+            while count > 0 do
+                local a = expression[i]
+                if a.typeof == "OPENPAR" then
+                    count = count + 1
+                elseif a.typeof == "CLOSEPAR" then
+                    count = count - 1
+                end
+                if a.typeof == "COMMA" or count == 0 then
+                    table.insert(node.arguments, self:compileExpression(expr, true))
+                    expr = {}
+                else
+                    table.insert(expr, a)
+                end
+                i = i + 1
+            end
+            if #node.func.arguments ~= #node.arguments then
+                self:throw("Incorrect number of arguments when calling function '%s':  expected %d, got %d", v.word, #node.func.arguments, #node.arguments)
+            end
+            table.insert(rpn, node)
+        elseif v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" then
             table.insert(rpn, v)
         elseif v.typeof == "OPENPAR" then
             table.insert(operators, v)
@@ -220,9 +241,6 @@ function compile:compileExpression(expression, just_get_rpn)
         table.insert(rpn, table.remove(operators, #operators))
     end
     if just_get_rpn then
-        for i, v in ipairs(expression) do
-            untag(v)
-        end
         return rpn
     end
 
@@ -240,16 +258,17 @@ function compile:compileExpression(expression, just_get_rpn)
         end
         table.insert(tops, last)
     end
-    while i <= #rpn do
-        local v = rpn[i]
-        if v.typeof == "IDENTIFIER" then
+    local function push(v)
+        if v.typeof == "FUNCTION_CALL" then
+            for q = #v.arguments, 1, -1 do
+                for e, l in ipairs(v.arguments[q]) do
+                    push(l)
+                end
+            end
+            self:push("CALL", v.func.label, #v.func.arguments)
+        elseif v.typeof == "IDENTIFIER" then
             local l = self:getLocal(v.word)
-            if l then
-                lastp = l
-            end
-            if not l and not lastp then
-                self:assertLocal(l, v.word)
-            end
+            self:assertLocal(l, v.word)
             if l then
                 local other = false
                 if rpn[i + 2] then
@@ -258,12 +277,7 @@ function compile:compileExpression(expression, just_get_rpn)
                         self:push("PUSHLOCAL", l.offset)
                         self:push("PUSHNUM", memoffset)
                         self:push("ADD")
-                        if istag(v) then
-                            table.insert(tops, {top = toptype.POINTER, tok = v})
-                        else
-                            self:push("GETMEM")
-                            table.insert(tops, {top = toptype.NUMBER, tok = v})
-                        end
+                        self:push("GETMEM")
                         i = i + 1
                     else
                         other = true
@@ -272,64 +286,61 @@ function compile:compileExpression(expression, just_get_rpn)
                     other = true
                 end
                 if other then
-					if istag(v) then
-						self:push("PUSHNUM", l.offset)
-					else
-						self:push("PUSHLOCAL", l.offset)
-                        -- todo find what datatype __INFER__ is
-                        if l.datatype ~= "real" and l.datatype ~= "__INFER__" then
-                            self:push("GETMEM")
-                        end
-					end
-					table.insert(tops, {top = toptype.NUMBER, tok = v})
+                    self:push("PUSHLOCAL", l.offset)
                 end
             end
-        elseif v.typeof == "ASSIGN" then
-            if tops[#tops - 1].top == toptype.POINTER then
-                self:push("SETMEM")
-            elseif tops[#tops - 1].top == toptype.NUMBER then
-                self:push("SETLOCAL")
-            end
-            pop()
         elseif v.typeof == "PLUS" then
-            pop()
             self:push("ADD")
         elseif v.typeof == "MINUS" then
-            pop()
             self:push("SUB")
         elseif v.typeof == "MULTIPLY" then
-            pop()
             self:push("MUL")
 		elseif v.typeof == "DIVIDE" then
-			pop()
 			self:push("DIV")
 		elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" or v.typeof == "EQ" then
-			pop()
 			self:push(v.typeof)
         elseif v.typeof == "NUMBER" then
-            table.insert(tops, {top = toptype.NUMBER, tok = v})
             self:push("PUSHNUM", v.word)
         end
+    end
+    while i <= #rpn do
+        push(rpn[i])
         i = i + 1
     end
-	for i, v in ipairs(expression) do
-		untag(v)
-	end
-
 end
 
 function compile:compileVariableDeclaration()
-    if self.at.datatype == "real" or self.at.datatype == "string" then
-        self:push("PUSHNUM", 0);
-    else
+    if self.at.modifiers.new then
         self:push("MALLOC", self.datatypes[self.at.datatype].sizeof)
+    else
+        self:push("PUSHNUM", 0);
     end
-    self:pushLocal(self.at.identifier, self.at.datatype, self.at.modifiers)
+    self:pushLocal(self.at)
 end
 
 function compile:compileVariableAssignment()
     self:compileExpression(self.at.expression)
-    self:pushLocal(self.at.identifier, self.at.datatype, self.at.modifiers)
+    self:pushLocal(self.at)
+end
+
+function compile:compileVariableReassignment()
+    self:compileExpression(self.at.right)
+    local left = self:compileExpression(self.at.left, true)
+    local i = 1
+    while i <= #left do
+        if left[i].typeof == "IDENTIFIER" and left[i + 2] and left[i + 1].typeof == "IDENTIFIER" and left[i + 2].typeof == "GETMEMBER" then
+            local l = self:getLocal(left[i].word)
+            self:push("PUSHLOCAL", l.offset)
+            self:push("PUSHNUM", self.datatypes[l.datatype].members[left[i + 1].word].offset)
+            self:push("ADD")
+            self:push("SETMEM")
+            i = i + 2
+        elseif left[i].typeof == "IDENTIFIER" then
+            local l = self:getLocal(left[i].word)
+            self:push("SETLOCAL", l.offset)
+        end
+        i = i + 1
+    end
 end
 
 function compile:compileIf()
@@ -353,7 +364,18 @@ end
 function compile:compileFunction()
     self:push("LABEL", self.labels)
     self.labels = self.labels + 1
-    self:addToQueue("RET")
+    self.offset = 0
+    for i = 1, #self.at.arguments do
+        self:push("PUSHARG", i - 1)
+        local arg = self.at.arguments[i]
+        arg.isarg = true
+        self:pushLocal(arg)
+    end
+    self:addToQueue()
+    self.funcs[self.at.identifier] = {
+        label = self.labels - 1;
+        arguments = self.at.arguments;
+    }
 end
 
 function compile:compileContinue()
@@ -380,6 +402,16 @@ function compile:compileBreak()
     end
 end
 
+function compile:compileReturn()
+    if #self.at.expression > 0 then
+        self:compileExpression(self.at.expression)
+    else
+        self:push("PUSHNUM", 0)
+    end
+    self:push("SETRET")
+    self:addToFrontCurrentQueue("RET")
+end
+
 function compile:branch()
     if self.at.block and self.at.block[1] then
         self.atblock = self.at.block
@@ -388,7 +420,8 @@ function compile:branch()
         while not self.at.parent_block[self.at.block_index + 1] do
             for i = #self.locals[self.at.parent_block], 1, -1 do
                 local v = self.locals[self.at.parent_block][i]
-                if self.at.parent_block.parent_chunk.typeof ~= "FUNCTION" then
+                if not v.isarg then
+                    local v = self.locals[self.at.parent_block][i]
                     if v.modifiers.strong or v.datatype == "real" then
                         self:push("POP")
                     else
@@ -397,8 +430,12 @@ function compile:branch()
                 end
             end
             self.at = self.at.parent_block.parent_chunk
+            self.atblock = self.at.parent_block
 			self:popFromQueue()
             if not self.at.parent_block then
+                while #self.queue > 0 do
+                    self:popFromQueue()
+                end
                 self.done = true
                 return
             end
@@ -413,6 +450,8 @@ function compile:branch()
         self:compileVariableDeclaration()
     elseif t == "VARIABLE_ASSIGNMENT" then
         self:compileVariableAssignment()
+    elseif t == "VARIABLE_REASSIGNMENT" then
+        self:compileVariableReassignment()
 	elseif t == "IF" then
 		self:compileIf()
 	elseif t == "WHILE" then
@@ -423,6 +462,8 @@ function compile:branch()
         self:compileContinue()
     elseif t == "BREAK" then
         self:compileBreak()
+    elseif t == "RETURN" then
+        self:compileReturn()
     elseif t == "EXPRESSION" then
         self:compileExpression(self.at.expression)
     end
@@ -438,6 +479,8 @@ function compile:main()
             break
         end
     end
+    self:push("PUSHNUM", 0)
+    self:push("CALL", self.funcs.main.label, 1)
     self:push("NULL", "NULL", "NULL")
 end
 

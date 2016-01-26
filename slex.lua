@@ -50,12 +50,9 @@ lex.token_grammar = {
     ["struct"]      = "STRUCT";
     ["real"]        = "DATATYPE";
     ["string"]      = "DATATYPE";
-    ["local"]       = "MODIFIER";
-    ["global"]      = "MODIFIER";
-    ["const"]       = "MODIFIER";
-    ["mut"]         = "MODIFIER";
     ["weak"]        = "MODIFIER";
     ["strong"]      = "MODIFIER";
+    ["new"]         = "MODIFIER";
 }
 
 function lex:init(contents)

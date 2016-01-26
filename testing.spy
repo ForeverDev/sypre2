@@ -1,6 +1,61 @@
-func main : null = (string filepath) {
+// a simple Vector3 struct with three members.
+// note 'real' stands for real number.  In Spyre,
+// a 'real' is just a double
+struct Vector3 {
+    real x;
+    real y;
+    real z;
+}
 
-    x : real = 20;
+// pass a Vector3 by reference and square its components
+func Vector3_square : null = (vec : Vector3) {
+
+    vec.x = vec.x * vec.x;
+    vec.y = vec.y * vec.y;
+    vec.z = vec.z * vec.z;
+
+    return 0;
+
+}
+
+// pass two Vector3s by reference, return a new Vector3
+// whos components are the sums of v1 and v2s components
+func Vector3_add : Vector3 = (v1 : Vector3, v2 : Vector3) {
+
+    new strong vec : Vector3;
+    vec.x = v1.x + v2.x;
+    vec.y = v1.y + v2.y;
+    vec.z = v1.z + v2.z;
+
+    return vec;
+
+}
+
+// create a new Vector3 given three arguments, x, y, and z
+func Vector3_new : Vector3 = (x : real, y : real, z : real) {
+
+    new strong vec : Vector3;
+    vec.x = x;
+    vec.y = y;
+    vec.z = z;
+
+    return vec;
+
+}
+
+func main : null = (filepath : string) {
+
+    strong a : Vector3;
+    strong b : Vector3;
+    strong c : Vector3;
+
+    a = Vector3_new(3, 4, 5);
+    b = Vector3_new(6, 7, 8);
+    c = Vector3_add(a, b);
+
+    Vector3_square(c);
+
+    return 0;
 
 }
 
