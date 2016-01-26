@@ -7,50 +7,51 @@ local lex = {}
 
 lex.token_grammar = {
     -- operators
-    ["+"]       = "PLUS";
-    ["-"]       = "MINUS";
-    ["*"]       = "MULTIPLY";
-    ["/"]       = "DIVIDE";
-    ["%"]       = "MODULUS";
-    ["="]       = "ASSIGN";
-    ["."]       = "GETMEMBER";
-    [">"]       = "GT";
-    ["<"]       = "LT";
-    [">="]      = "GE";
-    ["<="]      = "LE";
-    ["=="]      = "EQ";
-    ["++"]      = "INCREMENT";
-    ["--"]      = "DECREMENT";
-    ["+="]      = "NADD";
-    ["-="]      = "NSUB";
-    ["*="]      = "NMUL";
-    ["/="]      = "NDIV";
-    ["%="]      = "NMOD";
+    ["+"]           = "PLUS";
+    ["-"]           = "MINUS";
+    ["*"]           = "MULTIPLY";
+    ["/"]           = "DIVIDE";
+    ["%"]           = "MODULUS";
+    ["="]           = "ASSIGN";
+    ["."]           = "GETMEMBER";
+    [">"]           = "GT";
+    ["<"]           = "LT";
+    [">="]          = "GE";
+    ["<="]          = "LE";
+    ["=="]          = "EQ";
+    ["++"]          = "INCREMENT";
+    ["--"]          = "DECREMENT";
+    ["+="]          = "NADD";
+    ["-="]          = "NSUB";
+    ["*="]          = "NMUL";
+    ["/="]          = "NDIV";
+    ["%="]          = "NMOD";
     -- expression control
-    ["("]       = "OPENPAR";
-    [")"]       = "CLOSEPAR";
-    ["["]       = "OPENSQ";
-    ["]"]       = "CLOSESQ";
-    ["{"]       = "OPENCURL";
-    ["}"]       = "CLOSECURL";
-    [":"]       = "COLON";
-    [";"]       = "SEMICOLON";
-    [","]       = "COMMA";
+    ["("]           = "OPENPAR";
+    [")"]           = "CLOSEPAR";
+    ["["]           = "OPENSQ";
+    ["]"]           = "CLOSESQ";
+    ["{"]           = "OPENCURL";
+    ["}"]           = "CLOSECURL";
+    [":"]           = "COLON";
+    [";"]           = "SEMICOLON";
+    [","]           = "COMMA";
     -- keywords
-    ["func"]    = "FUNCTION";
-    ["if"]      = "IF";
-    ["while"]   = "WHILE";
-    ["for"]     = "FOR";
-    ["defer"]   = "DEFER";
-    ["return"]  = "RETURN";
-    ["break"]   = "BREAK";
-    ["struct"]  = "STRUCT";
-    ["real"]    = "DATATYPE";
-    ["string"]  = "DATATYPE";
-    ["local"]   = "MODIFIER";
-    ["global"]  = "MODIFIER";
-    ["const"]   = "MODIFIER";
-    ["mut"]     = "MODIFIER";
+    ["func"]        = "FUNCTION";
+    ["if"]          = "IF";
+    ["while"]       = "WHILE";
+    ["for"]         = "FOR";
+    ["defer"]       = "DEFER";
+    ["return"]      = "RETURN";
+    ["continue"]    = "CONTINUE";
+    ["break"]       = "BREAK";
+    ["struct"]      = "STRUCT";
+    ["real"]        = "DATATYPE";
+    ["string"]      = "DATATYPE";
+    ["local"]       = "MODIFIER";
+    ["global"]      = "MODIFIER";
+    ["const"]       = "MODIFIER";
+    ["mut"]         = "MODIFIER";
 }
 
 function lex:init(contents)
@@ -182,6 +183,7 @@ return function(contents)
 
     lex_state:init(contents)
     lex_state:generate()
+    lex_state:dump()
 
     return lex_state.tokens
 

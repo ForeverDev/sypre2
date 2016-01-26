@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 #include "sinterp.h"
 
 spy_state* spy_newstate() {
@@ -51,14 +52,19 @@ void spy_dumpMemory(spy_state* S) {
         if (i == SIZE_STACK) {
             printf("---STACK---\n\n---MEMORY---\n");
         } else if (i <= SIZE_STACK || S->marks[i]) {
-			printf("0x%08llx: %F\n", i, S->mem[i]);
+            f64 ipart;
+            if (fmod(S->mem[i], 1.0) == 0.0) {
+                printf("0x%08llx: 0x%08llx\n", i, (u64)S->mem[i]);
+            } else {
+                printf("0x%08llx: %F\n", i, S->mem[i]);
+            }
 		}
 	}
 	printf("---MEMORY---\n\n");
 	printf("---POINTERS---\n");
-	printf("ip: 0x%04llx\n", S->ip);
-	printf("sp: 0x%04llx\n", S->sp);
-	printf("fp: 0x%04llx\n", S->fp);
+	printf("ip: 0x%08llx\n", S->ip);
+	printf("sp: 0x%08llx\n", S->sp);
+	printf("fp: 0x%08llx\n", S->fp);
 	printf("---POINTERS---\n");
 }
 
@@ -110,7 +116,8 @@ void spy_run(spy_state* S, const u64* code) {
             // SUB
 			case 0x06: {
                 f64 b = S->mem[S->sp++];
-                S->mem[--S->sp] = S->mem[S->sp++] - b;
+                f64 a = S->mem[S->sp++];
+                S->mem[--S->sp] = a - b;
                 break;
             }
             // MUL
@@ -207,7 +214,9 @@ void spy_run(spy_state* S, const u64* code) {
             }
             // GET MEM
             case 0x17:
+                //printf("getmem ip %lld\n", S->sp);
                 S->mem[--S->sp] = S->mem[(u64)(S->mem[S->sp++])];
+                //printf("endgetmem\n");
                 break;
 			// LABEL
 			case 0x18:
@@ -217,21 +226,25 @@ void spy_run(spy_state* S, const u64* code) {
 			case 0x19: {
 				f64 val = S->mem[S->sp++];
 				S->mem[--S->sp] = S->mem[S->sp++] > val;
+                break;
 			}
 			// GE
 			case 0x1a: {
 				f64 val = S->mem[S->sp++];
 				S->mem[--S->sp] = S->mem[S->sp++] >= val;
+                break;
 			}
 			// LT
 			case 0x1b: {
 				f64 val = S->mem[S->sp++];
 				S->mem[--S->sp] = S->mem[S->sp++] < val;
+                break;
 			}
 			// LE
 			case 0x1c: {
 				f64 val = S->mem[S->sp++];
 				S->mem[--S->sp] = S->mem[S->sp++] <= val;
+                break;
 			}
 
 		}

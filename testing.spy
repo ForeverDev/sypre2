@@ -1,14 +1,15 @@
 struct Vector3 {
-	real x;
-	real y;
-	real z;
+    real x;
+    real y;
+    real z;
 }
 
 func main : null = (string filepath) {
 
-	vec : Vector3;
-	vec.x = 1;
-	vec.y = 2;
-	vec.z = 3;
+    position : Vector3;
+    position.x = 10;
+    position.y = 20;
+    position.z = 30;
 
 }
+

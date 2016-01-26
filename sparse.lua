@@ -330,12 +330,21 @@ function parse:main()
         elseif t.typeof == "CLOSECURL" then
             self:jumpIntoBlock(self.curblock.parent_chunk.parent_block)
         -- break can have an optional expression after it.  If it evaluates to true, loop WILL break
-        elseif t.typeof == "RETURN" or t.typeof == "BREAK" then
+        elseif t.typeof == "RETURN" then
             self:inc()
             local chunk = self:createChunk(t.typeof, false)
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
             chunk.expression = expression
             chunk.expression.raw = raw
+            self:pushIntoCurblock(chunk)
+        elseif t.typeof == "BREAK" or t.typeof == "CONTINUE" then
+            local chunk = self:createChunk(t.typeof, false)
+            if self.tokens[self.index + 1].typeof == "IF" then
+                self:inc(2)
+                local condition, raw = self:parseExpressionUntil("SEMICOLON", nil)
+                chunk.condition = condition
+                chunk.condition.raw = raw
+            end
             self:pushIntoCurblock(chunk)
         elseif t.typeof == "IDENTIFIER" and self.tokens[self.index + 1] and self.tokens[self.index + 1].typeof == "COLON" then
             self:parseDeclaration()

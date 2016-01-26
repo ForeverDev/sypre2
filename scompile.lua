@@ -55,6 +55,8 @@ function compile:init(tree, datatypes)
     self.locals                 = {}
     self.locals[self.atblock]   = {}
 	self.queue					= {}
+    self.loop_ends              = {}
+    self.loop_starts            = {}
 end
 
 function compile:throw(msgformat, ...)
@@ -272,14 +274,15 @@ function compile:compileExpression(expression, just_get_rpn)
 						self:push("PUSHNUM", l.offset)
 					else
 						self:push("PUSHLOCAL", l.offset)
-					end	
+                        -- todo find what datatype __INFER__ is
+                        if l.datatype ~= "real" and l.datatype ~= "__INFER__" then
+                            self:push("GETMEM")
+                        end
+					end
 					table.insert(tops, {top = toptype.NUMBER, tok = v})
                 end
             end
         elseif v.typeof == "ASSIGN" then
-            if not tops[#tops - 1] then
-                break
-            end
             if tops[#tops - 1].top == toptype.POINTER then
                 self:push("SETMEM")
             elseif tops[#tops - 1].top == toptype.NUMBER then
@@ -336,11 +339,37 @@ end
 
 function compile:compileWhile()
 	self:push("LABEL", self.labels)
+    table.insert(self.loop_starts, self.labels)
 	self.labels = self.labels + 1
 	self:compileExpression(self.at.condition)
 	self:push("JIF", self.labels)
 	self:addToQueue("JMP", self.labels - 1, "LABEL", self.labels)
+    table.insert(self.loop_ends, self.labels)
 	self.labels = self.labels + 1
+end
+
+function compile:compileContinue()
+    if #self.loop_ends == 0 then
+        self:throw("The keyword 'continue' can only be used inside of a loop")
+    end
+    if self.at.condition then
+        self:compileExpression(self.at.condition)
+        self:push("JIT", self.loop_starts[#self.loop_starts])
+    else
+        self:push("JMP", self.loop_starts[#self.loop_starts])
+    end
+end
+
+function compile:compileBreak()
+    if #self.loop_ends == 0 then
+        self:throw("The keyword 'break' can only be used inside of a loop")
+    end
+    if self.at.condition then
+        self:compileExpression(self.at.condition)
+        self:push("JIT", self.loop_ends[#self.loop_ends])
+    else
+        self:push("JMP", self.loop_ends[#self.loop_ends])
+    end
 end
 
 function compile:branch()
@@ -350,7 +379,7 @@ function compile:branch()
     else
         while not self.at.parent_block[self.at.block_index + 1] do
 			for i = 1, #self.locals[self.at.parent_block] do
-				self:push("POP")
+				--self:push("POP")
 			end
             self.at = self.at.parent_block.parent_chunk
 			self:popFromQueue()
@@ -373,6 +402,10 @@ function compile:branch()
 		self:compileIf()
 	elseif t == "WHILE" then
 		self:compileWhile()
+    elseif t == "CONTINUE" then
+        self:compileContinue()
+    elseif t == "BREAK" then
+        self:compileBreak()
     elseif t == "EXPRESSION" then
         self:compileExpression(self.at.expression)
     end
