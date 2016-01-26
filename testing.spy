@@ -1,51 +1,6 @@
-// a basic data structure.
-// 'real' for real number.  'real' is the only
-// number type in Spyre - it is a 64 bit floating point number
-struct Vector3 {
-    real x;
-    real y;
-    real z;
-}
-
 func main : null = (string filepath) {
 
-    // assign 60 to local x
-    x : real = 60;
-
-    // we can also declare a variable and then assign it
-    y : real;
-    y = 60;
-
-    // a sample if statement
-    if (x - 50 == 10) {
-
-        // any pointer that is declared 'strong' will not be freed
-        // when the scope ends (example usage, position is a pointer
-        // to another Vector3 that we don't want to be freed yet)
-        strong position : Vector3;
-        position.x = x;
-        position.y = x + 1;
-        position.z = x + 2;
-
-        // any pointer that is declared 'weak' will be
-        // freed when the scope ends (note that pointers
-        // are weak by default)
-        weak size : Vector3;
-        size.x = x * 2;
-        size.y = x * 3;
-        size.z = x * 4;
-
-        // a sample while loop (for loops not yet implemented)
-        counter : real = 100;
-        output : real = 1;
-
-        while (counter > 0) {
-            counter = counter - 1; // TODO implement counter-- and counter -=
-            output = output * 2;
-            break if counter == 90; // example break if <condition> syntax
-        }
-
-    }
+    x : real = 20;
 
 }
 

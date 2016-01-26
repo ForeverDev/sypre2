@@ -9,6 +9,7 @@ spy_state* spy_newstate() {
 	S->ip = 0;
 	S->sp = SIZE_STACK; // stack grows downwards
 	S->fp = SIZE_STACK;
+    S->rax = 0;
 	memset(S->mem, 0, sizeof(S->mem));
 	memset(S->marks, 0, sizeof(S->marks));
 	for (u64 i = 0; i < SIZE_MEM; i++) {
@@ -181,12 +182,12 @@ void spy_run(spy_state* S, const u64* code) {
             }
             // RET
             case 0x11: {
-                f64 retval = S->mem[S->sp++];
 				S->sp = S->fp;
 				S->ip = (u64)S->mem[S->sp++];
 				S->fp = (u64)S->mem[S->sp++];
 				S->sp += (u64)S->mem[S->sp++];
-                S->mem[--S->sp] = retval;
+                S->mem[--S->sp] = S->rax;
+                S->rax = 0;
 				break;
             }
             // JMP
@@ -260,7 +261,10 @@ void spy_run(spy_state* S, const u64* code) {
                 spy_free(S, ptr);
                 break;
             }
-
+            // SETRET
+            case 0x1e:
+                S->rax = S->mem[S->sp++];
+                break;
 		}
 	}
 }

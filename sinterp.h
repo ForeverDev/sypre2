@@ -22,6 +22,12 @@ typedef struct spy_state {
 	u64			sp;
 	u64			fp;
 	u64			labels[1024];
+    // rax is the return register.  when opcode
+    // 'SETRET' is seen, the value on the top
+    // of the stack is loaded into rax.  when
+    // 'LEAVE' is seen, the value in rax is
+    // pushed onto the stack
+    f64         rax;
 	f64			mem[SIZE_MEM];
     // note the stack is not marked, only
     // memory is

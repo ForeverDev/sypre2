@@ -18,7 +18,8 @@ compile.opcodes = {
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
-	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1}
+	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1},
+    {"SETRET", 0, -1}
 }
 
 compile.pres = {
@@ -349,6 +350,12 @@ function compile:compileWhile()
 	self.labels = self.labels + 1
 end
 
+function compile:compileFunction()
+    self:push("LABEL", self.labels)
+    self.labels = self.labels + 1
+    self:addToQueue("RET")
+end
+
 function compile:compileContinue()
     if #self.loop_ends == 0 then
         self:throw("The keyword 'continue' can only be used inside of a loop")
@@ -381,10 +388,12 @@ function compile:branch()
         while not self.at.parent_block[self.at.block_index + 1] do
             for i = #self.locals[self.at.parent_block], 1, -1 do
                 local v = self.locals[self.at.parent_block][i]
-                if v.modifiers.strong or v.datatype == "real" then
-                    self:push("POP")
-                else
-                    self:push("FREE")
+                if self.at.parent_block.parent_chunk.typeof ~= "FUNCTION" then
+                    if v.modifiers.strong or v.datatype == "real" then
+                        self:push("POP")
+                    else
+                        self:push("FREE")
+                    end
                 end
             end
             self.at = self.at.parent_block.parent_chunk
@@ -408,6 +417,8 @@ function compile:branch()
 		self:compileIf()
 	elseif t == "WHILE" then
 		self:compileWhile()
+    elseif t == "FUNCTION" then
+        self:compileFunction()
     elseif t == "CONTINUE" then
         self:compileContinue()
     elseif t == "BREAK" then
@@ -418,6 +429,9 @@ function compile:branch()
 end
 
 function compile:main()
+    self:push("JMP", 0)
+    self:addToQueue("LABEL", 0)
+    self.labels = 1
     while true do
         self:branch()
         if self.done then
