@@ -28,7 +28,7 @@ u64 spy_malloc(spy_state* S, u64 size) {
 			cursize = 0;
 		}
 		if (cursize == size) {
-            for (u64 j = memptr; j <= memptr + size; j++) {
+            for (u64 j = memptr; j <= memptr + size + 1; j++) {
                 S->marks[j] = 1;
             }
 			return memptr;
@@ -38,6 +38,15 @@ u64 spy_malloc(spy_state* S, u64 size) {
 	// TODO realloc space for MEMSIZE * 2
 	spy_runtimeError(S, "out of mem");
 	return 0;
+}
+
+void spy_free(spy_state* S, u64 ptr) {
+    while (1) {
+        if (!S->marks[ptr]) {
+            return;
+        }
+        S->marks[ptr++] = 0;
+    }
 }
 
 void spy_runtimeError(spy_state* S, const char* message) {
@@ -52,7 +61,6 @@ void spy_dumpMemory(spy_state* S) {
         if (i == SIZE_STACK) {
             printf("---STACK---\n\n---MEMORY---\n");
         } else if (i <= SIZE_STACK || S->marks[i]) {
-            f64 ipart;
             if (fmod(S->mem[i], 1.0) == 0.0) {
                 printf("0x%08llx: 0x%08llx\n", i, (u64)S->mem[i]);
             } else {
@@ -246,6 +254,12 @@ void spy_run(spy_state* S, const u64* code) {
 				S->mem[--S->sp] = S->mem[S->sp++] <= val;
                 break;
 			}
+            // FREE
+            case 0x1d: {
+                u64 ptr = S->mem[S->sp++];
+                spy_free(S, ptr);
+                break;
+            }
 
 		}
 	}

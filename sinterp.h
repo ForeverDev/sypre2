@@ -30,6 +30,7 @@ typedef struct spy_state {
 
 spy_state*	spy_newstate();
 u64			spy_malloc(spy_state*, u64);
+void        spy_free(spy_state*, u64);
 void		spy_runtimeError(spy_state*, const s8*);
 void		spy_dumpMemory(spy_state*);
 void		spy_run(spy_state*, const u64*);

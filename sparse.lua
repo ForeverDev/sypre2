@@ -241,10 +241,15 @@ function parse:parseStruct()
 end
 
 -- syntax possibilities:
---   x : datatype;          (declaration)
---   x : datatype = 10;     (assignment)
---   x := 10;               (assignment, compiler infers datatype)
+--   <modifier*> x : datatype;          (declaration)
+--   <modifier*> x : datatype = 10;     (assignment)
+--   <modifier*> x := 10;               (assignment, compiler infers datatype)
 function parse:parseDeclaration()
+    local modifiers = {}
+    while self:gettok().typeof == "MODIFIER" do
+        modifiers[self:gettok().word] = true
+        self:inc()
+    end
     local identifier = self:gettok().word
     -- skip over colon
     self:inc(2)
@@ -267,6 +272,7 @@ function parse:parseDeclaration()
         chunk = self:createChunk("VARIABLE_DECLARATION", false)
         chunk.identifier = identifier
         chunk.datatype = found_datatype
+        chunk.modifiers = modifiers
     else
         -- else, the user is assigning the variable to the
         -- result of an expression
@@ -276,6 +282,10 @@ function parse:parseDeclaration()
         chunk.datatype = found_datatype
         chunk.expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
         chunk.expression.raw = raw
+        chunk.modifiers = modifiers
+    end
+    if (modifiers.strong or modifiers.weak) and chunk.datatype == "real" then
+        self:throw("Attempt to make variable '%s' strong or weak:  non-pointer types cannot be made strong or weak", chunk.identifier)
     end
     self:pushIntoCurblock(chunk)
 end
@@ -346,7 +356,7 @@ function parse:main()
                 chunk.condition.raw = raw
             end
             self:pushIntoCurblock(chunk)
-        elseif t.typeof == "IDENTIFIER" and self.tokens[self.index + 1] and self.tokens[self.index + 1].typeof == "COLON" then
+        elseif t.typeof == "MODIFIER" or (t.typeof == "IDENTIFIER" and self.tokens[self.index + 1] and self.tokens[self.index + 1].typeof == "COLON") then
             self:parseDeclaration()
         elseif t.typeof ~= "OPENCURL" then
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
@@ -368,7 +378,6 @@ return function(tokens)
 
     parse_state:init(tokens)
     parse_state:main()
-    parse_state:dump()
 
     return parse_state.tree, parse_state.datatypes
 

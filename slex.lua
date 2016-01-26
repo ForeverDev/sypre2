@@ -6,6 +6,8 @@
 local lex = {}
 
 lex.token_grammar = {
+    -- comment
+    ["//"]          = "COMMENT";
     -- operators
     ["+"]           = "PLUS";
     ["-"]           = "MINUS";
@@ -52,6 +54,8 @@ lex.token_grammar = {
     ["global"]      = "MODIFIER";
     ["const"]       = "MODIFIER";
     ["mut"]         = "MODIFIER";
+    ["weak"]        = "MODIFIER";
+    ["strong"]      = "MODIFIER";
 }
 
 function lex:init(contents)
@@ -126,6 +130,12 @@ function lex:generate()
             -- newline
             if c == "\n" then
                 self.line = self.line + 1
+            elseif c == "/" and self.source:sub(self.index + 1, self.index + 1) == "/" then
+                self:inc(2)
+                while self:space() and self:getchar() ~= "\n" do
+                    self:inc()
+                end
+                self:dec()
             -- string
             elseif c == "\"" then
                 local str = c
@@ -183,7 +193,6 @@ return function(contents)
 
     lex_state:init(contents)
     lex_state:generate()
-    lex_state:dump()
 
     return lex_state.tokens
 

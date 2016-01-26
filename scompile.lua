@@ -18,7 +18,7 @@ compile.opcodes = {
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
-	{"LT", 0, -1},			{"LE", 0, -1}
+	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1}
 }
 
 compile.pres = {
@@ -142,11 +142,12 @@ function compile:popFromQueue()
 	self:push(unpack(table.remove(self.queue, #self.queue)))
 end
 
-function compile:pushLocal(identifier, datatype)
+function compile:pushLocal(identifier, datatype, modifiers)
     table.insert(self.locals[self.atblock], {
         identifier = identifier,
         offset = self.offset,
-        datatype = datatype
+        datatype = datatype,
+        modifiers = modifiers
     })
 end
 
@@ -322,12 +323,12 @@ function compile:compileVariableDeclaration()
     else
         self:push("MALLOC", self.datatypes[self.at.datatype].sizeof)
     end
-    self:pushLocal(self.at.identifier, self.at.datatype)
+    self:pushLocal(self.at.identifier, self.at.datatype, self.at.modifiers)
 end
 
 function compile:compileVariableAssignment()
     self:compileExpression(self.at.expression)
-    self:pushLocal(self.at.identifier, self.at.datatype)
+    self:pushLocal(self.at.identifier, self.at.datatype, self.at.modifiers)
 end
 
 function compile:compileIf()
@@ -378,9 +379,14 @@ function compile:branch()
         self.at = self.at.block[1]
     else
         while not self.at.parent_block[self.at.block_index + 1] do
-			for i = 1, #self.locals[self.at.parent_block] do
-				--self:push("POP")
-			end
+            for i = #self.locals[self.at.parent_block], 1, -1 do
+                local v = self.locals[self.at.parent_block][i]
+                if v.modifiers.strong or v.datatype == "real" then
+                    self:push("POP")
+                else
+                    self:push("FREE")
+                end
+            end
             self.at = self.at.parent_block.parent_chunk
 			self:popFromQueue()
             if not self.at.parent_block then
