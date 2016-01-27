@@ -22,7 +22,7 @@ To run a compiled file:
 `spy r (compiled_filename)`
 
 
-*IMAGES*
+**IMAGES**
 
 ![Alt text](https://i.gyazo.com/e8bd215d9214989fca711174ad09b5c3.png "Code example 1")
 
