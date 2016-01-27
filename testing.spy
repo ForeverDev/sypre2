@@ -45,9 +45,6 @@ func Vector3_new : Vector3 = (x : real, y : real, z : real) {
 
 func main : null = (filepath : string) {
 
-	nicememe();
-	wwag();
-
     strong a : Vector3;
     strong b : Vector3;
     strong c : Vector3;
@@ -58,7 +55,7 @@ func main : null = (filepath : string) {
 
     Vector3_square(c);
 
-    return 0;
+    return a;
 
 }
 

@@ -357,10 +357,11 @@ function compile:compileExpression(expression, just_get_rpn)
 				-- push func name pointer
 				-- ccall
 				self:writeConstant(v.identifier)
+				--[[
 				self:push("PUSHNUM", #v.arguments)
 				self:push("PUSHNUM", self:getConstant(v.identifier) )
-				print(self:getConstant(v.identifier))
 				self:push("CCALL", self:comment("call c function %s", v.identifier))
+				]]
 			end
         elseif v.typeof == "IDENTIFIER" then
             local l = self:getLocal(v.word)

@@ -25,11 +25,11 @@ u64 spy_malloc(spy_state* S, u64 size) {
 		if (!S->marks[i]) {
 			cursize++;
 		} else {
-			memptr = i;
+			memptr = i + 1;
 			cursize = 0;
 		}
 		if (cursize == size) {
-            for (u64 j = memptr; j <= memptr + size + 1; j++) {
+            for (u64 j = memptr; j <= memptr + size; j++) {
                 S->marks[j] = 1;
             }
 			return memptr;
@@ -85,8 +85,6 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
 		memptr++;
 	}
 	S->marks[SIZE_STACK + memptr + 1] = 1;
-	S->mem[SIZE_STACK + memptr + 2] = 0x00;
-	S->marks[SIZE_STACK + memptr + 2] = 1;
 	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00) {
 		const s8 opcode = (u8)code[S->ip];
 		S->ip++;
