@@ -13,13 +13,9 @@ func factorial : real = (n : real) {
 
 func main : null = (filepath : string) {
 
-	x : new Vector3;
-	x.x = 10;
-
-	while x.x > 0 {
-		println(factorial(x.x));
-		x.x = x.x - 1;
-	}
+	x : real = 5.5;
+	
+	println(x);
 
 	return 0;
 }

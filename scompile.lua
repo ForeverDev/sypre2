@@ -5,6 +5,13 @@
 
 -- find . -name '*.c' -o -name '*.h' -o -name '*.lua' -o -name '*.spy' | xargs wc -l
 
+-- TODO LIST
+--		type checking (when calling functions, when assigning variables, etc.)
+--			tag everything (identifier, number, etc) with a datatype
+--			implement typechecking into :compileExpression
+--		implement strings
+--		implement typeof tags in interpreter
+
 local compile = {}
 
 -- format: <name> <numargs (-1 = TBD)> <stack offset>
@@ -63,6 +70,12 @@ function compile:init(tree, datatypes, output)
     self.funcs                  = {}
 	self.const_ptrs				= {}
 	self.const_memory			= {}
+
+	setmetatable(self.bytecode, {
+		__newindex = function(_, k, v)
+			rawset(self.bytecode, k, tostring(v))
+		end
+	})
 end
 
 function compile:throw(msgformat, ...)
@@ -77,39 +90,9 @@ function compile:assertLocal(l, name)
     end
 end
 
--- NOTE i did not make this function,
--- i found it at http://lua-users.org/lists/lua-l/2015-03/msg00163.html
-function compile:doubleToBytes(num)
-	local bytes = {0,0,0,0, 0,0,0,0}
-	if num == 0 then
-		return bytes
-	end
-	local anum = math.abs(num)
-
-	local mantissa, exponent = math.frexp(anum)
-	exponent = exponent - 1
-	mantissa = mantissa * 2 - 1
-	local sign = num ~= anum and 128 or 0
-	exponent = exponent + 1023
-
-	bytes[1] = sign + math.floor(exponent / 2^4)
-	mantissa = mantissa * 2^4
-	local currentmantissa = math.floor(mantissa)
-	mantissa = mantissa - currentmantissa
-	bytes[2] = (exponent % 2^4) * 2^4 + currentmantissa
-	for i= 3, 8 do
-		mantissa = mantissa * 2^8
-		currentmantissa = math.floor(mantissa)
-		mantissa = mantissa - currentmantissa
-		bytes[i] = currentmantissa
-	end
-	return bytes
-end
-
-function compile:pushDouble(d)
-	local bytes = self:doubleToBytes(d)
-	for i = #bytes, 1, -1 do
-		self.file:write(string.char(bytes[i]))
+function compile:pushData(fmt, ...)
+	for i, v in ipairs{...} do
+		self.file:write(string.pack(fmt, tonumber(v)))
 	end
 end
 
@@ -172,17 +155,12 @@ function compile:getOpcode(hexcode)
     return compile.opcodes[tonumber(hexcode) + 1]
 end
 
-function compile:toHex(n)
-	return tostring(n)
-    --return string.format("0x%04x", tonumber(n))
-end
-
 function compile:push(...)
     local a = {...}
     for i, v in ipairs(a) do
         local hex = self:getHexcode(v)
         if hex then
-            table.insert(self.bytecode, self:toHex(hex))
+            table.insert(self.bytecode, hex)
             if v == "CALL" then
                 self.offset = self.offset - tonumber(a[i + 2])
 			elseif v == "CCALL" then
@@ -192,7 +170,7 @@ function compile:push(...)
             end
         else
 			if tostring(v):sub(1, 1) ~= ";" then
-				table.insert(self.bytecode, self:toHex(v))
+				table.insert(self.bytecode, v)
 			else
 				table.insert(self.bytecode, v)
 			end
@@ -208,9 +186,9 @@ function compile:writeConstant(const)
 	if not self.const_ptrs[const] then
 		local ptr = #self.const_memory
 		for i = 1, const:len() do
-			table.insert(self.const_memory, self:toHex(const:sub(i, i):byte()))
+			table.insert(self.const_memory, const:sub(i, i):byte())
 		end
-		table.insert(self.const_memory, self:toHex(0))
+		table.insert(self.const_memory, 0)
 		self.const_ptrs[const] = ptr
 	end
 end
@@ -400,10 +378,6 @@ function compile:compileExpression(expression, just_get_rpn)
             self:push("PUSHNUM", v.word)
         end
     end
-	for i, v in ipairs(rpn) do
-		io.write("(" .. v.typeof .. " " .. (v.word or "?") .. ") ")
-	end
-	print()
     while i <= #rpn do
         push(rpn[i])
         i = i + 1
@@ -421,8 +395,10 @@ end
 
 function compile:compileVariableAssignment()
     self:compileExpression(self.at.expression)
-	self.offset = self.offset + 1
     self:pushLocal(self.at)
+	local l = self:getLocal(self.at.identifier)
+	self:push("PUSHLOCAL", l.offset)
+	self:push("SETLOCAL", l.offset)
 end
 
 function compile:compileVariableReassignment()
@@ -594,18 +570,18 @@ function compile:main()
 	end
 
 	-- header #1, points to the start of the data section
-	self:pushDouble(16)
+	self:pushData("I", 8)
 	-- header #2, points to the start of the code section
 	-- note the +1 is for the null termination that is
 	-- added to the end of the data section
-	self:pushDouble(#self.const_memory * 8 + 16)
+	self:pushData("I", #self.const_memory * 8 + 8)
 
 	for i, v in ipairs(self.const_memory) do
-		self:pushDouble(tonumber(v))
+		self:pushData("d", v)
 	end
 
 	for i, v in ipairs(self.bytecode) do
-		self:pushDouble(tonumber(v))
+		self:pushData("d", v)
 	end
 end
 

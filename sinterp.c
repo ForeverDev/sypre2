@@ -85,7 +85,7 @@ void spy_dumpMemory(spy_state* S) {
 	printf("---POINTERS---\n");
 }
 
-void spy_run(spy_state* S, const u64* code, const f64* mem) {
+void spy_run(spy_state* S, const f64* code, const f64* mem) {
 	u64 memptr = 0;
 	while (mem[memptr] != 0x00 || mem[memptr + 1] != 0x00 || mem[memptr + 2] != 0x00) {
 		S->mem[SIZE_STACK + memptr + 1] = mem[memptr];
@@ -172,21 +172,21 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
 				break;
             // PUSHLOCAL
             case 0x0d:
-                S->mem[--S->sp] = S->mem[S->fp - code[S->ip++]];
+                S->mem[--S->sp] = S->mem[S->fp - (u64)code[S->ip++]];
                 break;
             // SETLOCAL
             case 0x0e: {
 				f64 val = S->mem[S->sp++];
-                S->mem[S->fp - code[S->ip++]] = val;
+                S->mem[S->fp - (u64)code[S->ip++]] = val;
                 break;
 			}
             // PUSHARG
             case 0x0f:
-                S->mem[--S->sp] = S->mem[S->fp + 3 + code[S->ip++]];
+                S->mem[--S->sp] = S->mem[S->fp + 3 + (u64)code[S->ip++]];
                 break;
             // CALL
             case 0x10: {
-                u64 addr = S->labels[code[S->ip++]];
+                u64 addr = S->labels[(u64)code[S->ip++]];
                 S->mem[--S->sp] = (f64)code[S->ip++];
                 S->mem[--S->sp] = (f64)S->fp;
                 S->mem[--S->sp] = (f64)S->ip;
@@ -309,22 +309,22 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
 
 /*
 	HEADERS:
-		dataptr (2 bytes)
+		dataptr (4 bytes)
 			holds the location of the first byte of data
 
-		codeptr (2 bytes)
+		codeptr (4 bytes)
 			holds the location of the first byte of code
 */
 void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	FILE* f = fopen(filename, "rb");
 	u64 fsize;
 	s8* fcontents;
-	u64 code[65536];
+	f64 code[65536];
 	f64 data[65536];
 	u64 codeptr = 0;
 	u64 dataptr = 0;
-	f64 codestart;
-	f64 datastart;
+	u32 codestart;
+	u32 datastart;
 
 	memset(code, 0, sizeof(code));
 	memset(data, 0, sizeof(data));
@@ -342,9 +342,9 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	fclose(f);
 	fcontents[fsize] = '\0';	
 
-	memcpy(&datastart, &fcontents[0], 8);
-	memcpy(&codestart, &fcontents[8], 8);
-	
+	memcpy(&datastart, &fcontents[0], sizeof(u32));
+	memcpy(&codestart, &fcontents[4], sizeof(u32));
+
 	f64 d;
 
 	for (u64 i = datastart; i < codestart; i += 8) {
