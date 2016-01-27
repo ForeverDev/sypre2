@@ -43,6 +43,8 @@ compile.pres = {
 
 }
 
+compile.SHOW_COMMENTS = true 
+
 function compile:init(tree, datatypes)
     self.tree                   = tree
     self.datatypes              = datatypes
@@ -74,33 +76,63 @@ function compile:assertLocal(l, name)
     end
 end
 
+-- NOTE i did not make this function,
+-- i found it at http://lua-users.org/lists/lua-l/2015-03/msg00163.html
+function compile:doubleToBytes(num)
+	local bytes = {0,0,0,0, 0,0,0,0}
+	if num == 0 then
+		return bytes
+	end
+	local anum = math.abs(num)
+
+	local mantissa, exponent = math.frexp(anum)
+	exponent = exponent - 1
+	mantissa = mantissa * 2 - 1
+	local sign = num ~= anum and 128 or 0
+	exponent = exponent + 1023
+
+	bytes[1] = sign + math.floor(exponent / 2^4)
+	mantissa = mantissa * 2^4
+	local currentmantissa = math.floor(mantissa)
+	mantissa = mantissa - currentmantissa
+	bytes[2] = (exponent % 2^4) * 2^4 + currentmantissa
+	for i= 3, 8 do
+		mantissa = mantissa * 2^8
+		currentmantissa = math.floor(mantissa)
+		mantissa = mantissa - currentmantissa
+		bytes[i] = currentmantissa
+	end
+	return bytes
+end
+
 function compile:dump()
     local i = 1
 	print("BYTECODE:")
     while i <= #self.bytecode do
         local opcode = self:getOpcode(tonumber(self.bytecode[i]))
         if opcode then
+			local len = 0
 			if opcode[1] ~= "LABEL" then
 				io.write("\t")
+				len = len + 4
 			end
-            io.write(opcode[1] .. " ")
-            if opcode[2] > 0 then
-                for j = 1, opcode[2] do
-                    i = i + 1
-                    io.write(self.bytecode[i] .. " ")
-                end
-            end
+			local len = len + #opcode[1]
+			io.write(opcode[1] .. " ")
+			local nargs = opcode[2]
 			i = i + 1
-			if self.bytecode[i] then
-				if self.bytecode[i]:sub(1, 1) == ";" then
-					io.write("\t\t" .. self.bytecode[i])	
-					i = i + 1
-				end
+			for j = 1, nargs do
+				len = len + #self.bytecode[i]
+				io.write(self.bytecode[i] .. " ")
+				i = i + 1
 			end
-        else
+			if self.bytecode[i] and self.bytecode[i]:sub(1, 1) == ";" then
+				io.write(string.rep(" ", 50 - len) .. self.bytecode[i])
+				i = i + 1
+			end
+			print()
+		else
 			i = i + 1
 		end
-		print()
     end
 	print("\nCONST MEMORY:")
 	for i, v in ipairs(self.const_memory) do
@@ -136,9 +168,9 @@ function compile:toHex(n)
     n = tonumber(n)
     if n < 0 then
         -- -1 for null pointer
-        return string.format("0x%04x", 0xbff0000000000000 + n)
+        return string.format("0x%16x", 0xbff0000000000000 + n)
     end
-    return string.format("0x%04x", n)
+    return string.format("0x%016x", n)
 end
 
 function compile:push(...)
@@ -167,7 +199,7 @@ function compile:comment(msg, ...)
 end
 
 function compile:writeConstant(const)
-	const = const .. '\0'
+	const = const .. "\0"
 	if not self.const_ptrs[const] then
 		local ptr = #self.const_memory
 		for i = 1, const:len() do
@@ -178,7 +210,7 @@ function compile:writeConstant(const)
 end
 
 function compile:getConstant(const)
-	return self.const_ptrs[const]
+	return self.const_ptrs[const .. "\0"]
 end
 
 function compile:addToQueue(...)
@@ -323,7 +355,8 @@ function compile:compileExpression(expression, just_get_rpn)
 				-- ccall
 				self:writeConstant(v.identifier)
 				self:push("PUSHNUM", #v.arguments)
-				self:push("PUSHNUM", self:getConstant(v.identifier))
+				self:push("PUSHNUM", self:getConstant(v.identifier) )
+				print(self:getConstant(v.identifier))
 				self:push("CCALL", self:comment("call c function %s", v.identifier))
 			end
         elseif v.typeof == "IDENTIFIER" then
@@ -426,7 +459,7 @@ function compile:compileFunction()
     self.labels = self.labels + 1
     self.offset = 0
     for i = 1, #self.at.arguments do
-        self:push("PUSHARG", i - 1)
+        self:push("PUSHARG", i - 1, self:comment("load arg %s", self.at.arguments[i].identifier))
         local arg = self.at.arguments[i]
         arg.isarg = true
         self:pushLocal(arg)
@@ -544,14 +577,14 @@ function compile:main()
     self:push("NULL", "NULL", "NULL")
 end
 
-return function(tree, datatypes)
+return function(tree, datatypes, output)
 
     local compile_state = setmetatable({}, {__index = compile})
 
 
     compile_state:init(tree, datatypes)
     compile_state:main()
-    compile_state:dump()
+    --compile_state:dump()
 
 	for i = #compile_state.bytecode, 1, -1 do
 		if compile_state.bytecode[i]:sub(1, 1) == ";" then
@@ -559,7 +592,20 @@ return function(tree, datatypes)
 		end
 	end
 
-    return table.concat(compile_state.bytecode, " ")
+	local file = io.open(output, "w")	
+	for i, v in ipairs(compile_state.bytecode) do
+		-- sub(3) is because each string starts with '0x'
+		local bytes = compile_state:doubleToBytes(tonumber(v:sub(3), 16))
+		io.write(string.format("%04d:\t", tonumber(v:sub(3), 16)))
+		for j = #bytes, 1, -1 do
+		--for j = 1, #bytes do
+			-- ignore the inefficency i just want to get it to work first
+			io.write(string.format("%02x ", bytes[j]) .. " ")
+			file:write(string.char(bytes[j]))
+		end
+		print()
+	end
+
 
 end
 

@@ -1,6 +1,6 @@
 -- entry point to be called from main.c
 -- 'file' is relative path to .spy file
-function main(file)
+function main(file, output)
     local input = io.open(file, "r")
     local contents = input:read("*all")
     input:close()
@@ -9,5 +9,7 @@ function main(file)
     local parse = dofile("sparse.lua")
     local compile = dofile("scompile.lua")
 
-    return compile(parse(lex(contents)))
+	local tree, datatypes = parse(lex(contents))
+
+    return compile(tree, datatypes, output)
 end

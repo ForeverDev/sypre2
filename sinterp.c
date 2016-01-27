@@ -77,9 +77,17 @@ void spy_dumpMemory(spy_state* S) {
 	printf("---POINTERS---\n");
 }
 
-void spy_run(spy_state* S, const u64* code) {
+void spy_run(spy_state* S, const u64* code, const f64* mem) {
+	u64 memptr = 0;
+	while (mem[memptr] != 0x00 || mem[memptr + 1] != 0x00 || mem[memptr + 2] != 0x00) {
+		S->mem[SIZE_STACK + memptr + 1] = mem[memptr];
+		S->marks[SIZE_STACK + memptr + 1] = 1;
+		memptr++;
+	}
+	S->mem[SIZE_STACK + memptr + 1] = 0x00;
+	S->marks[SIZE_STACK + memptr + 1] = 1;
 	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00) {
-		const char opcode = (u8)code[S->ip];
+		const s8 opcode = (u8)code[S->ip];
 		S->ip++;
 		if (opcode == 0x18) {
 			S->labels[(u64)code[S->ip++]] = S->ip + 1;
@@ -264,35 +272,63 @@ void spy_run(spy_state* S, const u64* code) {
                 break;
 			// CCALL
 			case 0x1f: {
+				u64 fptr = (u64)S->mem[S->sp++] + SIZE_STACK + 1;
 				u64 nargs = (u64)S->mem[S->sp++];
-				u64 fptr = (u64)S->mem[S->sp++];
+				u64 fnameptr = 0;
+				s8 fname[128];
+				s8 c = (s8)S->mem[fptr];
+				while (c != '\0') {
+					fptr++;
+					fname[fnameptr++] = c;
+					c = (s8)S->mem[fptr];
+				}
+				fname[fnameptr] = '\0';
+				printf("CALLCF %llx %s\n", fptr, fname);
 				break;
 			}
 		}
 	}
 }
 
-void spy_runFromString(spy_state* S, const s8* code) {
-	u64 generated_code[65536];
-	u64 index = 0, bufptr = 0, codeptr = 0;
-	s8 buf[128];
-	while (1) {
-		if (code[index] == ' ' || code[index] == '\0') {
-			char* hexa = malloc(bufptr);
-			for (int i = 0; i < bufptr; i++) {
-				hexa[i] = buf[i];
-			}
-			bufptr = 0;
-			memset(buf, 0, sizeof(buf));
-			generated_code[codeptr++] = (char)strtol(hexa, NULL, 16);
-			free(hexa);
-            if (code[index] == '\0') {
-                break;
-            }
-		} else {
-			buf[bufptr++] = code[index];
-		}
-		index++;
+/*
+	HEADERS:
+		dataptr (2 bytes)
+			holds the location of the first byte of data
+
+		codeptr (2 bytes)
+			holds the location of the first byte of code
+
+			none of the header data is implemented yet xdd
+*/
+void spy_executeBinaryFile(spy_state* S, const s8* filename) {
+	FILE* f = fopen(filename, "rb");
+	u64 fsize;
+	s8* fcontents;
+	u64 code[65536];
+	f64 data[65536];
+	memset(data, 0, sizeof(data)); // just because data is unused as of now
+	u64 codeptr = 0;
+
+	if (f == NULL) {
+		spy_runtimeError(S, "Couldn't execute file");
+		return;
+	}	
+
+	fseek(f, 0, SEEK_END);
+	fsize = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	fcontents = malloc(fsize + 1);
+	fread(fcontents, fsize, 1, f);
+	fclose(f);
+	fcontents[fsize] = '\0';	
+
+	f64 d;
+
+	for (u64 i = 0; i < fsize; i += 8) {
+		memcpy(&d, &fcontents[i], sizeof(double));
+		code[codeptr++] = d;
 	}
-	spy_run(S, generated_code);
+	
+	spy_run(S, code, data);
+
 }
