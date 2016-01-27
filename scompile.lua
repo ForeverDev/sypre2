@@ -241,7 +241,7 @@ function compile:popFromQueue()
 	if #self.queue == 0 then
 		return
 	end
-	self:push(unpack(table.remove(self.queue, #self.queue)))
+	self:push(table.unpack(table.remove(self.queue, #self.queue)))
 end
 
 function compile:pushLocal(l)

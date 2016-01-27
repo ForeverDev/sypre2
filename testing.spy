@@ -13,15 +13,13 @@ func factorial : real = (n : real) {
 
 func main : null = (filepath : string) {
 
-	x : real = factorial(5);
-	y : real = factorial(6);
-	z : real;
-	z = factorial(7);
-	
-	v : new Vector3;
-	v.x = 60 - 3;
+	x : new Vector3;
+	x.x = 10;
 
-	println(x, y, z, v.x);
+	while x.x > 0 {
+		println(factorial(x.x));
+		x.x = x.x - 1;
+	}
 
 	return 0;
 }
