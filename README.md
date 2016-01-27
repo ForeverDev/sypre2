@@ -2,7 +2,7 @@ Spyre by David Wilson
 I'd like to thank Github for messing up the code indentation ;(
 
 Installation:<br>
-<b>git clone https://github.com/ForeverDev/spyre2</b><br>
+<b>git clone https://github.com/ForeverDev/spyre2 spyre</b><br>
 <b>cd spyre</b><br>
 <b>make</b>
 
