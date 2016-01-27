@@ -19,7 +19,7 @@ compile.opcodes = {
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
 	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1},
-    {"SETRET", 0, -1},		{"CCALL", 0, 0}
+    {"SETRET", 0, -1},		{"CCALL", 2, 0}
 }
 
 compile.pres = {
@@ -134,7 +134,7 @@ function compile:dump()
 				i = i + 1
 			end
 			if self.bytecode[i] and self.bytecode[i]:sub(1, 1) == ";" then
-				io.write(string.rep(" ", 50 - len) .. self.bytecode[i])
+				io.write(string.rep(" ", 23 - len) .. self.bytecode[i])
 				i = i + 1
 			end
 			print()
@@ -173,7 +173,8 @@ function compile:getOpcode(hexcode)
 end
 
 function compile:toHex(n)
-    return string.format("0x%04x", tonumber(n))
+	return tostring(n)
+    --return string.format("0x%04x", tonumber(n))
 end
 
 function compile:push(...)
@@ -184,6 +185,8 @@ function compile:push(...)
             table.insert(self.bytecode, self:toHex(hex))
             if v == "CALL" then
                 self.offset = self.offset - tonumber(a[i + 2])
+			elseif v == "CCALL" then
+				self.offset = self.offset - tonumber(a[i + 2])
             else
                 self.offset = self.offset + self:getOpcode(hex)[3]
             end
@@ -289,7 +292,7 @@ function compile:compileExpression(expression, just_get_rpn)
                     count = count - 1
                 end
                 if a.typeof == "COMMA" or count == 0 then
-                    table.insert(node.arguments, self:compileExpression(expr, true))
+                    table.insert(node.arguments, expr)
                     expr = {}
                 else
                     table.insert(expr, a)
@@ -341,10 +344,8 @@ function compile:compileExpression(expression, just_get_rpn)
     local function push(v)
         if v.typeof == "FUNCTION_CALL" then
             for q = #v.arguments, 1, -1 do
-                for e, l in ipairs(v.arguments[q]) do
-                    push(l)
-                end
-            end
+				self:compileExpression(v.arguments[q])
+			end
 			-- call spyre function
 			if v.func then
 				self:push("CALL", v.func.label, #v.func.arguments)
@@ -353,15 +354,14 @@ function compile:compileExpression(expression, just_get_rpn)
 				-- C call format:
 				-- push arg0
 				-- push arg1 ...
-				-- push num args
 				-- push func name pointer
-				-- ccall
+				-- ccall, fptr, numargs
 				self:writeConstant(v.identifier)
-				--[[
-				self:push("PUSHNUM", #v.arguments)
-				self:push("PUSHNUM", self:getConstant(v.identifier) )
-				self:push("CCALL", self:comment("call c function %s", v.identifier))
-				]]
+				local fname = self:getConstant(v.identifier)
+				if not fname then
+					self:throw("Attempt to call a non-existant function '%s'", fname)
+				end
+				self:push("CCALL", fname, #v.arguments, self:comment("call c function %s", v.identifier))
 			end
         elseif v.typeof == "IDENTIFIER" then
             local l = self:getLocal(v.word)
@@ -375,7 +375,7 @@ function compile:compileExpression(expression, just_get_rpn)
                         self:push("PUSHNUM", memoffset)
                         self:push("ADD")
                         self:push("GETMEM", self:comment("get member %s of local %s (typeof %s)", rpn[i + 1].word, l.identifier, l.datatype))
-                        i = i + 1
+                        i = i + 2
                     else
                         other = true
                     end
@@ -400,6 +400,10 @@ function compile:compileExpression(expression, just_get_rpn)
             self:push("PUSHNUM", v.word)
         end
     end
+	for i, v in ipairs(rpn) do
+		io.write("(" .. v.typeof .. " " .. (v.word or "?") .. ") ")
+	end
+	print()
     while i <= #rpn do
         push(rpn[i])
         i = i + 1
@@ -417,6 +421,7 @@ end
 
 function compile:compileVariableAssignment()
     self:compileExpression(self.at.expression)
+	self.offset = self.offset + 1
     self:pushLocal(self.at)
 end
 
@@ -596,11 +601,11 @@ function compile:main()
 	self:pushDouble(#self.const_memory * 8 + 16)
 
 	for i, v in ipairs(self.const_memory) do
-		self:pushDouble(tonumber(v:sub(3), 16))
+		self:pushDouble(tonumber(v))
 	end
 
 	for i, v in ipairs(self.bytecode) do
-		self:pushDouble(tonumber(v:sub(3), 16))
+		self:pushDouble(tonumber(v))
 	end
 end
 

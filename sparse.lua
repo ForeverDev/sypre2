@@ -245,13 +245,13 @@ end
 --   <modifier*> x := 10;               (assignment, compiler infers datatype)
 function parse:parseDeclaration()
     local modifiers = {}
+    local identifier = self:gettok().word
+    -- skip over colon
+    self:inc(2)
     while self:gettok().typeof == "MODIFIER" do
         modifiers[self:gettok().word] = true
         self:inc()
     end
-    local identifier = self:gettok().word
-    -- skip over colon
-    self:inc(2)
     local datatype = self:gettok()
     local found_datatype = nil
     if datatype.typeof == "ASSIGN" then

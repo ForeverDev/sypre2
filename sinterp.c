@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include "sapi.h"
+#include "sio.h"
 #include "sinterp.h"
 
 spy_state* spy_newstate() {
@@ -9,13 +11,19 @@ spy_state* spy_newstate() {
 	S->ip = 0;
 	S->sp = SIZE_STACK; // stack grows downwards
 	S->fp = SIZE_STACK;
+	S->cfp = 0;
     S->rax = 0;
 	memset(S->mem, 0, sizeof(S->mem));
 	memset(S->marks, 0, sizeof(S->marks));
 	for (u64 i = 0; i < SIZE_MEM; i++) {
 		S->marks[i] = 0;
 	}
+	spy_loadlibs(S);
 	return S;
+}
+
+void spy_loadlibs(spy_state* S) {
+	spy_iolib_load(S);
 }
 
 u64 spy_malloc(spy_state* S, u64 size) {
@@ -271,8 +279,8 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
                 break;
 			// CCALL
 			case 0x1f: {
-				u64 fptr = (u64)S->mem[S->sp++] + SIZE_STACK + 1;
-				u64 nargs = (u64)S->mem[S->sp++];
+				u64 fptr = (u64)code[S->ip++] + SIZE_STACK + 1;
+				u64 nargs = (u64)code[S->ip++];
 				u64 fnameptr = 0;
 				s8 fname[128];
 				s8 c = (s8)S->mem[fptr];
@@ -282,7 +290,17 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
 					c = (s8)S->mem[fptr];
 				}
 				fname[fnameptr] = '\0';
-				printf("CALLCF %llx %s\n", fptr, fname);
+				u8 found = 0;
+				for (u64 i = 0; i < S->cfp; i++) {
+					if (!strncmp(S->cfuncs[i].identifier, fname, fnameptr)) {
+						S->cfuncs[i].f(S, nargs);
+						found = 1;
+						break;
+					}
+				}
+				if (!found) {
+					spy_runtimeError(S, "Attempt to call a non-existant C function\n");
+				}
 				break;
 			}
 		}
@@ -327,8 +345,6 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	memcpy(&datastart, &fcontents[0], 8);
 	memcpy(&codestart, &fcontents[8], 8);
 	
-	printf("%F %F\n", datastart, codestart);
-
 	f64 d;
 
 	for (u64 i = datastart; i < codestart; i += 8) {

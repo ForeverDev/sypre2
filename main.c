@@ -39,7 +39,6 @@ int main(int argc, char** argv) {
 
         S = spy_newstate();
         spy_executeBinaryFile(S, argv[2]);
-        spy_dumpMemory(S);
 
     }
 
