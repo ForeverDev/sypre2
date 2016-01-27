@@ -84,8 +84,9 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
 		S->marks[SIZE_STACK + memptr + 1] = 1;
 		memptr++;
 	}
-	S->mem[SIZE_STACK + memptr + 1] = 0x00;
 	S->marks[SIZE_STACK + memptr + 1] = 1;
+	S->mem[SIZE_STACK + memptr + 2] = 0x00;
+	S->marks[SIZE_STACK + memptr + 2] = 1;
 	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00) {
 		const s8 opcode = (u8)code[S->ip];
 		S->ip++;
@@ -297,8 +298,6 @@ void spy_run(spy_state* S, const u64* code, const f64* mem) {
 
 		codeptr (2 bytes)
 			holds the location of the first byte of code
-
-			none of the header data is implemented yet xdd
 */
 void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	FILE* f = fopen(filename, "rb");
@@ -306,8 +305,13 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	s8* fcontents;
 	u64 code[65536];
 	f64 data[65536];
-	memset(data, 0, sizeof(data)); // just because data is unused as of now
 	u64 codeptr = 0;
+	u64 dataptr = 0;
+	f64 codestart;
+	f64 datastart;
+
+	memset(code, 0, sizeof(code));
+	memset(data, 0, sizeof(data));
 
 	if (f == NULL) {
 		spy_runtimeError(S, "Couldn't execute file");
@@ -322,10 +326,20 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	fclose(f);
 	fcontents[fsize] = '\0';	
 
+	memcpy(&datastart, &fcontents[0], 8);
+	memcpy(&codestart, &fcontents[8], 8);
+	
+	printf("%F %F\n", datastart, codestart);
+
 	f64 d;
 
-	for (u64 i = 0; i < fsize; i += 8) {
-		memcpy(&d, &fcontents[i], sizeof(double));
+	for (u64 i = datastart; i < codestart; i += 8) {
+		memcpy(&d, &fcontents[i], sizeof(f64));
+		data[dataptr++] = d;
+	}
+
+	for (u64 i = codestart; i < fsize; i += 8) {
+		memcpy(&d, &fcontents[i], sizeof(f64));
 		code[codeptr++] = d;
 	}
 	

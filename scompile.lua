@@ -45,11 +45,12 @@ compile.pres = {
 
 compile.SHOW_COMMENTS = true 
 
-function compile:init(tree, datatypes)
+function compile:init(tree, datatypes, output)
     self.tree                   = tree
     self.datatypes              = datatypes
     self.at                     = tree[1]
     self.atblock                = tree[1].block
+	self.file					= io.open(output, "w")
     self.offset                 = 0
 	self.labels					= 0
     self.done                   = false
@@ -103,6 +104,13 @@ function compile:doubleToBytes(num)
 		bytes[i] = currentmantissa
 	end
 	return bytes
+end
+
+function compile:pushDouble(d)
+	local bytes = self:doubleToBytes(d)
+	for i = #bytes, 1, -1 do
+		self.file:write(string.char(bytes[i]))
+	end
 end
 
 function compile:dump()
@@ -165,12 +173,7 @@ function compile:getOpcode(hexcode)
 end
 
 function compile:toHex(n)
-    n = tonumber(n)
-    if n < 0 then
-        -- -1 for null pointer
-        return string.format("0x%16x", 0xbff0000000000000 + n)
-    end
-    return string.format("0x%016x", n)
+    return string.format("0x%04x", tonumber(n))
 end
 
 function compile:push(...)
@@ -199,18 +202,18 @@ function compile:comment(msg, ...)
 end
 
 function compile:writeConstant(const)
-	const = const .. "\0"
 	if not self.const_ptrs[const] then
 		local ptr = #self.const_memory
 		for i = 1, const:len() do
 			table.insert(self.const_memory, self:toHex(const:sub(i, i):byte()))
 		end
+		table.insert(self.const_memory, self:toHex(0))
 		self.const_ptrs[const] = ptr
 	end
 end
 
 function compile:getConstant(const)
-	return self.const_ptrs[const .. "\0"]
+	return self.const_ptrs[const]
 end
 
 function compile:addToQueue(...)
@@ -575,6 +578,29 @@ function compile:main()
     self:push("PUSHNUM", 0)
     self:push("CALL", self.funcs.main.label, 1)
     self:push("NULL", "NULL", "NULL")
+
+	self:dump()
+
+	for i = #self.bytecode, 1, -1 do
+		if self.bytecode[i]:sub(1, 1) == ";" then
+			table.remove(self.bytecode, i)
+		end
+	end
+
+	-- header #1, points to the start of the data section
+	self:pushDouble(16)
+	-- header #2, points to the start of the code section
+	-- note the +1 is for the null termination that is
+	-- added to the end of the data section
+	self:pushDouble(#self.const_memory * 8 + 16)
+
+	for i, v in ipairs(self.const_memory) do
+		self:pushDouble(tonumber(v:sub(3), 16))
+	end
+
+	for i, v in ipairs(self.bytecode) do
+		self:pushDouble(tonumber(v:sub(3), 16))
+	end
 end
 
 return function(tree, datatypes, output)
@@ -582,29 +608,9 @@ return function(tree, datatypes, output)
     local compile_state = setmetatable({}, {__index = compile})
 
 
-    compile_state:init(tree, datatypes)
+    compile_state:init(tree, datatypes, output)
     compile_state:main()
     --compile_state:dump()
-
-	for i = #compile_state.bytecode, 1, -1 do
-		if compile_state.bytecode[i]:sub(1, 1) == ";" then
-			table.remove(compile_state.bytecode, i)
-		end
-	end
-
-	local file = io.open(output, "w")	
-	for i, v in ipairs(compile_state.bytecode) do
-		-- sub(3) is because each string starts with '0x'
-		local bytes = compile_state:doubleToBytes(tonumber(v:sub(3), 16))
-		io.write(string.format("%04d:\t", tonumber(v:sub(3), 16)))
-		for j = #bytes, 1, -1 do
-		--for j = 1, #bytes do
-			-- ignore the inefficency i just want to get it to work first
-			io.write(string.format("%02x ", bytes[j]) .. " ")
-			file:write(string.char(bytes[j]))
-		end
-		print()
-	end
 
 
 end
