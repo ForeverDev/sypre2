@@ -262,6 +262,12 @@ void spy_run(spy_state* S, const u64* code) {
             case 0x1e:
                 S->rax = S->mem[S->sp++];
                 break;
+			// CCALL
+			case 0x1f: {
+				u64 nargs = (u64)S->mem[S->sp++];
+				u64 fptr = (u64)S->mem[S->sp++];
+				break;
+			}
 		}
 	}
 }

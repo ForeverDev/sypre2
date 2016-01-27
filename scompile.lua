@@ -1,6 +1,6 @@
 -- Spyre lexer
 -- arguments:   abstract syntax tree, datatypes
--- returns:     Spyre bytecode
+-- returns:     Spyre bytecode, Spyre const memory
 -- gives to:    main.c
 
 -- find . -name '*.c' -o -name '*.h' -o -name '*.lua' -o -name '*.spy' | xargs wc -l
@@ -19,7 +19,7 @@ compile.opcodes = {
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
 	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1},
-    {"SETRET", 0, -1}
+    {"SETRET", 0, -1},		{"CCALL", 0, 0}
 }
 
 compile.pres = {
@@ -58,6 +58,8 @@ function compile:init(tree, datatypes)
     self.loop_ends              = {}
     self.loop_starts            = {}
     self.funcs                  = {}
+	self.const_ptrs				= {}
+	self.const_memory			= {}
 end
 
 function compile:throw(msgformat, ...)
@@ -74,6 +76,7 @@ end
 
 function compile:dump()
     local i = 1
+	print("BYTECODE:")
     while i <= #self.bytecode do
         local opcode = self:getOpcode(tonumber(self.bytecode[i]))
         if opcode then
@@ -87,10 +90,28 @@ function compile:dump()
                     io.write(self.bytecode[i] .. " ")
                 end
             end
-            print()
-        end
-        i = i + 1
+			i = i + 1
+			if self.bytecode[i] then
+				if self.bytecode[i]:sub(1, 1) == ";" then
+					io.write("\t\t" .. self.bytecode[i])	
+					i = i + 1
+				end
+			end
+        else
+			i = i + 1
+		end
+		print()
     end
+	print("\nCONST MEMORY:")
+	for i, v in ipairs(self.const_memory) do
+		print(string.format("0x%04x: %s", i - 1, v))
+	end
+	print("\nCONST MEMORY POINTERS:")
+	local i = 0
+	for _, v in pairs(self.const_ptrs) do
+		print(string.format("0x%04x: 0x%04x", i, v))
+		i = i + 1
+	end
 end
 
 -- gives hexcode from opcode
@@ -132,9 +153,32 @@ function compile:push(...)
                 self.offset = self.offset + self:getOpcode(hex)[3]
             end
         else
-            table.insert(self.bytecode, self:toHex(v))
+			if tostring(v):sub(1, 1) ~= ";" then
+				table.insert(self.bytecode, self:toHex(v))
+			else
+				table.insert(self.bytecode, v)
+			end
         end
     end
+end
+
+function compile:comment(msg, ...)
+	return string.format("; " .. msg, ...)
+end
+
+function compile:writeConstant(const)
+	const = const .. '\0'
+	if not self.const_ptrs[const] then
+		local ptr = #self.const_memory
+		for i = 1, const:len() do
+			table.insert(self.const_memory, self:toHex(const:sub(i, i):byte()))
+		end
+		self.const_ptrs[const] = ptr
+	end
+end
+
+function compile:getConstant(const)
+	return self.const_ptrs[const]
 end
 
 function compile:addToQueue(...)
@@ -195,6 +239,7 @@ function compile:compileExpression(expression, just_get_rpn)
             local node = {
                 typeof = "FUNCTION_CALL";
                 arguments = {};
+				identifier = v.word;
                 func = self.funcs[v.word]
             }
             local args = {}
@@ -216,7 +261,7 @@ function compile:compileExpression(expression, just_get_rpn)
                 end
                 i = i + 1
             end
-            if #node.func.arguments ~= #node.arguments then
+            if node.func and #node.func.arguments ~= #node.arguments then
                 self:throw("Incorrect number of arguments when calling function '%s':  expected %d, got %d", v.word, #node.func.arguments, #node.arguments)
             end
             table.insert(rpn, node)
@@ -265,7 +310,22 @@ function compile:compileExpression(expression, just_get_rpn)
                     push(l)
                 end
             end
-            self:push("CALL", v.func.label, #v.func.arguments)
+			-- call spyre function
+			if v.func then
+				self:push("CALL", v.func.label, #v.func.arguments)
+			-- call C function
+			else
+				-- C call format:
+				-- push arg0
+				-- push arg1 ...
+				-- push num args
+				-- push func name pointer
+				-- ccall
+				self:writeConstant(v.identifier)
+				self:push("PUSHNUM", #v.arguments)
+				self:push("PUSHNUM", self:getConstant(v.identifier))
+				self:push("CCALL", self:comment("call c function %s", v.identifier))
+			end
         elseif v.typeof == "IDENTIFIER" then
             local l = self:getLocal(v.word)
             self:assertLocal(l, v.word)
@@ -277,7 +337,7 @@ function compile:compileExpression(expression, just_get_rpn)
                         self:push("PUSHLOCAL", l.offset)
                         self:push("PUSHNUM", memoffset)
                         self:push("ADD")
-                        self:push("GETMEM")
+                        self:push("GETMEM", self:comment("get member %s of local %s (typeof %s)", rpn[i + 1].word, l.identifier, l.datatype))
                         i = i + 1
                     else
                         other = true
@@ -333,11 +393,11 @@ function compile:compileVariableReassignment()
             self:push("PUSHLOCAL", l.offset)
             self:push("PUSHNUM", self.datatypes[l.datatype].members[left[i + 1].word].offset)
             self:push("ADD")
-            self:push("SETMEM")
+            self:push("SETMEM", self:comment("setlocal %s.%s", l.identifier, left[i + 1].word))
             i = i + 2
         elseif left[i].typeof == "IDENTIFIER" then
             local l = self:getLocal(left[i].word)
-            self:push("SETLOCAL", l.offset)
+            self:push("SETLOCAL", l.offset, self:comment("setlocal %s", l.identifier))
         end
         i = i + 1
     end
@@ -492,6 +552,12 @@ return function(tree, datatypes)
     compile_state:init(tree, datatypes)
     compile_state:main()
     compile_state:dump()
+
+	for i = #compile_state.bytecode, 1, -1 do
+		if compile_state.bytecode[i]:sub(1, 1) == ";" then
+			table.remove(compile_state.bytecode, i)
+		end
+	end
 
     return table.concat(compile_state.bytecode, " ")
 
