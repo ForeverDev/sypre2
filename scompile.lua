@@ -61,6 +61,7 @@ function compile:init(tree, datatypes, output)
     self.offset                 = 0
 	self.labels					= 0
     self.done                   = false
+	self.current_function		= nil
     self.bytecode               = {}
     self.locals                 = {}
     self.locals[self.atblock]   = {}
@@ -307,18 +308,19 @@ function compile:compileExpression(expression, just_get_rpn)
 
     local i = 1
     local lastp = nil
-    local toptype = {
-        ["POINTER"] = 1;
-        ["NUMBER"] = 2;
-    }
     local tops = {}
-    local function pop()
-        local last = tops[#tops]
-        for i = 1, 2 do
-            table.remove(tops, #tops)
-        end
-        table.insert(tops, last)
-    end
+	local function newtop(t, id)
+		table.insert(tops, {t, id})
+	end
+	local function typecheck()
+		local a = table.remove(tops, #tops)
+		local b = table.remove(tops, #tops)
+		if a[1] ~= b[1] then
+			-- TODO implement implicit casting
+			self:throw("Attempt to perform arithmetic on two different datatypes ('%s' %s and '%s' %s)", a[1], a[2], b[1], b[2])
+		end
+		newtop(a[1], a[2])
+	end
     local function push(v)
         if v.typeof == "FUNCTION_CALL" then
             for q = #v.arguments, 1, -1 do
@@ -327,6 +329,7 @@ function compile:compileExpression(expression, just_get_rpn)
 			-- call spyre function
 			if v.func then
 				self:push("CALL", v.func.label, #v.func.arguments)
+				newtop(v.func.rettype, "(return type from '" .. v.identifier .. "' call")
 			-- call C function
 			else
 				-- C call format:
@@ -336,10 +339,8 @@ function compile:compileExpression(expression, just_get_rpn)
 				-- ccall, fptr, numargs
 				self:writeConstant(v.identifier)
 				local fname = self:getConstant(v.identifier)
-				if not fname then
-					self:throw("Attempt to call a non-existant function '%s'", fname)
-				end
 				self:push("CCALL", fname, #v.arguments, self:comment("call c function %s", v.identifier))
+				newtop("real", fname)
 			end
         elseif v.typeof == "IDENTIFIER" then
             local l = self:getLocal(v.word)
@@ -354,6 +355,7 @@ function compile:compileExpression(expression, just_get_rpn)
                         self:push("ADD")
                         self:push("GETMEM", self:comment("get member %s of local %s (typeof %s)", rpn[i + 1].word, l.identifier, l.datatype))
                         i = i + 2
+						newtop(self.datatypes[l.datatype].members[rpn[i + 1].word].datatype.typename, "field " .. rpn[i + 1].word)
                     else
                         other = true
                     end
@@ -361,27 +363,33 @@ function compile:compileExpression(expression, just_get_rpn)
                     other = true
                 end
                 if other then
+					newtop(l.datatype, l.identifier)
                     self:push("PUSHLOCAL", l.offset)
                 end
             end
-        elseif v.typeof == "PLUS" then
-            self:push("ADD")
-        elseif v.typeof == "MINUS" then
-            self:push("SUB")
-        elseif v.typeof == "MULTIPLY" then
-            self:push("MUL")
-		elseif v.typeof == "DIVIDE" then
-			self:push("DIV")
-		elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" or v.typeof == "EQ" then
-			self:push(v.typeof)
         elseif v.typeof == "NUMBER" then
+			newtop("real", v.word)
             self:push("PUSHNUM", v.word)
-        end
+		else
+			typecheck()
+			if v.typeof == "PLUS" then
+				self:push("ADD")
+			elseif v.typeof == "MINUS" then
+				self:push("SUB")
+			elseif v.typeof == "MULTIPLY" then
+				self:push("MUL")
+			elseif v.typeof == "DIVIDE" then
+				self:push("DIV")
+			elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" or v.typeof == "EQ" then
+				self:push(v.typeof)
+			end
+		end
     end
     while i <= #rpn do
         push(rpn[i])
         i = i + 1
     end
+	return tops[#tops][1]
 end
 
 function compile:compileVariableDeclaration()
@@ -394,10 +402,13 @@ function compile:compileVariableDeclaration()
 end
 
 function compile:compileVariableAssignment()
-    self:compileExpression(self.at.expression)
+	self:push("PUSHNUM", 0)
     self:pushLocal(self.at)
+    local datatype = self:compileExpression(self.at.expression)
 	local l = self:getLocal(self.at.identifier)
-	self:push("PUSHLOCAL", l.offset)
+	if datatype ~= l.datatype then
+		self:throw("Attempt to assign an expression with an evaluated type of '%s' to a variable of type '%s'", datatype, l.datatype)
+	end
 	self:push("SETLOCAL", l.offset)
 end
 
@@ -453,7 +464,10 @@ function compile:compileFunction()
     self.funcs[self.at.identifier] = {
         label = self.labels - 1;
         arguments = self.at.arguments;
+		identifier = self.at.identifier;
+		rettype = self.at.rettype;
     }
+	self.current_function = self.funcs[self.at.identifier]
 end
 
 function compile:compileContinue()
@@ -481,11 +495,16 @@ function compile:compileBreak()
 end
 
 function compile:compileReturn()
+	local datatype;
     if #self.at.expression > 0 then
-        self:compileExpression(self.at.expression)
+        datatype = self:compileExpression(self.at.expression)
     else
         self:push("PUSHNUM", 0)
+		datatype = "null"
     end
+	if datatype ~= self.current_function.rettype then
+		self:throw("Return statement evaluated to type '%s': it should evaluate to type '%s'", datatype, self.current_function.rettype)
+	end
     self:push("SETRET")
     self:addToFrontCurrentQueue("RET")
 end

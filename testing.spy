@@ -13,10 +13,10 @@ func factorial : real = (n : real) {
 
 func main : null = (filepath : string) {
 
-	x : real = 5.5;
-	
+	x : real = factorial(5);
+
 	println(x);
 
-	return 0;
+	return;
 }
 

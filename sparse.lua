@@ -11,9 +11,9 @@ function parse:init(tokens)
     self.tokens             = tokens
     self.curblock           = nil
     self.datatypes = {
-        ["real"]            = {sizeof = 1};
-        ["string"]          = {sizeof = 1};
-        ["null"]            = {sizeof = 1};
+        ["real"]            = {sizeof = 1, typename = "real"};
+        ["string"]          = {sizeof = 1, typename = "string"};
+        ["null"]            = {sizeof = 1, typename = "null"};
     }
 
     local root              = {}
@@ -236,6 +236,7 @@ function parse:parseStruct()
     self.datatypes[typename] = {
         sizeof = sizeof;
         members = members;
+		typename = typename;
     }
 end
 
