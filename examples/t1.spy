@@ -1,6 +1,5 @@
 // Spyre example code
 // by David Wilson
-
 // a simple data structure containing 3 real numbers
 struct Vector3 {
 	x : real;
@@ -20,7 +19,6 @@ func Vector3_new : Vector3 = (x : real, y : real, z : real) {
 	return v;
 
 }
-
 // this function takes two Vector3s by reference and adds them
 // into the first one.
 func Vector3_add : null = (v0 : Vector3, v1 : Vector3) {
@@ -33,11 +31,10 @@ func Vector3_add : null = (v0 : Vector3, v1 : Vector3) {
 
 }
 
-// a sample factorial function
 func factorial : real = (n : real) {
-	
+
 	return 1 if n == 1;
-	// recursion is supported!
+
 	return n * factorial(n - 1);
 
 }
@@ -46,7 +43,7 @@ func factorial : real = (n : real) {
 func main : null = () {
 
 	position	: Vector3 = Vector3_new(50, 35, 10.33);
-	size		: Vector3 = Vector3_new(200, 300, 400);
+	size		:= Vector3_new(200, 300, 400);
 
 	Vector3_add(position, size);
 

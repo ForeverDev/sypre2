@@ -354,6 +354,5 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	}
 	
 	spy_run(S, code, data);
-	spy_dumpMemory(S);
 
 }

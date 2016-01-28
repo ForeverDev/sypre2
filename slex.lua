@@ -158,7 +158,7 @@ function lex:generate()
             -- number
             elseif c:match("%d") then
                 local num = ""
-                while c:match("%d") or c == "." do
+                while c:match("%d") or c == "." or c == "e" do
                     num = num .. c
                     self:inc()
                     c = self:getchar()

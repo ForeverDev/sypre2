@@ -24,6 +24,6 @@ To run a compiled file:
 
 **IMAGES**
 
-![Alt text](https://i.gyazo.com/e8bd215d9214989fca711174ad09b5c3.png "Code example 1")
+![Alt text](http://prntscr.com/9vswec "Code example 1")
 
 

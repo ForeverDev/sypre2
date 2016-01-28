@@ -180,6 +180,20 @@ function compile:push(...)
     end
 end
 
+function compile:popLocals()
+	for i = #self.locals[self.at.parent_block], 1, -1 do
+		local v = self.locals[self.at.parent_block][i]
+		if not v.isarg then
+			local v = self.locals[self.at.parent_block][i]
+			if v.modifiers.strong or v.datatype == "real" then
+				self:push("POP")
+			else
+				self:push("FREE")
+			end
+		end
+	end
+end
+
 function compile:comment(msg, ...)
 	return string.format("; " .. msg, ...)
 end
@@ -495,6 +509,7 @@ function compile:compileContinue()
     end
 end
 
+-- TODO cleanup locals 
 function compile:compileBreak()
     if #self.loop_ends == 0 then
         self:throw("The keyword 'break' can only be used inside of a loop")
@@ -518,11 +533,13 @@ function compile:compileReturn()
 	if datatype ~= self.current_function.rettype then
 		self:throw("Return statement in function '%s' evaluated to type '%s': it should evaluate to type '%s'", self.current_function.identifier, datatype, self.current_function.rettype)
 	end
-	if self.condition then
+	if self.at.condition then
 		self:compileExpression(self.at.condition)
 		self:push("JIF", self.labels)
 		self:push("SETRET")
-		self:addToFrontCurrentQueue("RET", "LABEL", self.labels)
+		self:popLocals()
+		self:push("RET")
+		self:push("LABEL", self.labels)
 		self.labels = self.labels + 1
 	else
 		self:push("SETRET")
@@ -540,17 +557,6 @@ function compile:branch()
 			return
 		end
         while not self.at.parent_block[self.at.block_index + 1] do
-            for i = #self.locals[self.at.parent_block], 1, -1 do
-                local v = self.locals[self.at.parent_block][i]
-                if not v.isarg then
-                    local v = self.locals[self.at.parent_block][i]
-                    if v.modifiers.strong or v.datatype == "real" then
-                        self:push("POP")
-                    else
-                        self:push("FREE")
-                    end
-                end
-            end
             self.at = self.at.parent_block.parent_chunk
             self.atblock = self.at.parent_block
 			self:popFromQueue()
