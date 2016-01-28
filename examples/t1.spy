@@ -1,16 +1,27 @@
+struct Vector2 {
+	x : real;
+	y : real;
+}
+
+func Vector2_new : Vector2 = (x : real, y : real, z : real) {
+
+	v : strong new Vector2;
+	v.x = x;
+	v.y = y;
+	v.z = z;
+
+	return v;
+
+}
+
 // the entry point
 func main : null = () {
 
 	pi : real = 3.14159265358979;
 
-	x : real = max(5, 10, 15);
-	y : real = min(5, 10, 15);
-	z : real = sin(pi);
-	a : real = cos(pi);
-	b : real = max(pi, 2);
-
-	println(x, y, z, a, b);
 	
+	
+
 	return;
 }
 
