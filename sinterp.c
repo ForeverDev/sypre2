@@ -64,17 +64,13 @@ void spy_runtimeError(spy_state* S, const char* message) {
 }
 
 void spy_dumpMemory(spy_state* S) {
-	printf("MEMORY DUMP:\n");
+	printf("\nMEMORY DUMP:\n\n");
 	printf("---STACK---\n");
 	for (u64 i = S->sp; i < SIZE_MEM; i++) {
         if (i == SIZE_STACK) {
             printf("---STACK---\n\n---MEMORY---\n");
         } else if (i <= SIZE_STACK || S->marks[i]) {
-            if (fmod(S->mem[i], 1.0) == 0.0) {
-                printf("0x%08llx: 0x%08llx\n", i, (u64)S->mem[i]);
-            } else {
-                printf("0x%08llx: %F\n", i, S->mem[i]);
-            }
+			printf("0x%08llx: %F\n", i, S->mem[i]);
 		}
 	}
 	printf("---MEMORY---\n\n");
@@ -82,7 +78,7 @@ void spy_dumpMemory(spy_state* S) {
 	printf("ip: 0x%08llx\n", S->ip);
 	printf("sp: 0x%08llx\n", S->sp);
 	printf("fp: 0x%08llx\n", S->fp);
-	printf("---POINTERS---\n");
+	printf("---POINTERS---\n\n");
 }
 
 void spy_run(spy_state* S, const f64* code, const f64* mem) {
@@ -358,5 +354,6 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 	}
 	
 	spy_run(S, code, data);
+	spy_dumpMemory(S);
 
 }

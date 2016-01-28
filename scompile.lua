@@ -61,6 +61,7 @@ function compile:init(tree, datatypes, output)
     self.offset                 = 0
 	self.labels					= 0
     self.done                   = false
+	self.should_abort			= false 
 	self.current_function		= nil
     self.bytecode               = {}
     self.locals                 = {}
@@ -81,8 +82,8 @@ end
 
 function compile:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
+	self.should_abort = true
     print(string.format("\nSPYRE COMPILE ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self.at.line))
-    os.exit()
 end
 
 function compile:assertLocal(l, name)
@@ -324,7 +325,17 @@ function compile:compileExpression(expression, just_get_rpn)
     local function push(v)
         if v.typeof == "FUNCTION_CALL" then
             for q = #v.arguments, 1, -1 do
-				self:compileExpression(v.arguments[q])
+				local datatype = self:compileExpression(v.arguments[q])
+				if v.func then
+					if datatype ~= v.func.arguments[q].datatype then
+						self:throw("Attempt to pass argument of type '%s' to function '%s': argument should be of type '%s' (argument %s)",
+							datatype,
+							v.func.identifier,
+							v.func.arguments[q].datatype,
+							#v.arguments - q
+						)
+					end
+				end
 			end
 			-- call spyre function
 			if v.func then
@@ -347,15 +358,15 @@ function compile:compileExpression(expression, just_get_rpn)
             self:assertLocal(l, v.word)
             if l then
                 local other = false
-                if rpn[i + 2] then
+                if rpn[i + 1] and rpn[i + 2] then
                     if rpn[i + 1].typeof == "IDENTIFIER" and rpn[i + 2].typeof == "GETMEMBER" then
                         local memoffset = self.datatypes[l.datatype].members[rpn[i + 1].word].offset
                         self:push("PUSHLOCAL", l.offset)
                         self:push("PUSHNUM", memoffset)
                         self:push("ADD")
                         self:push("GETMEM", self:comment("get member %s of local %s (typeof %s)", rpn[i + 1].word, l.identifier, l.datatype))
-                        i = i + 2
 						newtop(self.datatypes[l.datatype].members[rpn[i + 1].word].datatype.typename, "field " .. rpn[i + 1].word)
+                        i = i + 2
                     else
                         other = true
                     end
@@ -406,7 +417,9 @@ function compile:compileVariableAssignment()
     self:pushLocal(self.at)
     local datatype = self:compileExpression(self.at.expression)
 	local l = self:getLocal(self.at.identifier)
-	if datatype ~= l.datatype then
+	if l.datatype == "__INFER__" then
+		l.datatype = datatype
+	elseif datatype ~= l.datatype then
 		self:throw("Attempt to assign an expression with an evaluated type of '%s' to a variable of type '%s'", datatype, l.datatype)
 	end
 	self:push("SETLOCAL", l.offset)
@@ -503,7 +516,7 @@ function compile:compileReturn()
 		datatype = "null"
     end
 	if datatype ~= self.current_function.rettype then
-		self:throw("Return statement evaluated to type '%s': it should evaluate to type '%s'", datatype, self.current_function.rettype)
+		self:throw("Return statement in function '%s' evaluated to type '%s': it should evaluate to type '%s'", self.current_function.identifier, datatype, self.current_function.rettype)
 	end
     self:push("SETRET")
     self:addToFrontCurrentQueue("RET")
@@ -514,6 +527,10 @@ function compile:branch()
         self.atblock = self.at.block
         self.at = self.at.block[1]
     else
+		if not self.at.parent_block then
+			self.done = true
+			return
+		end
         while not self.at.parent_block[self.at.block_index + 1] do
             for i = #self.locals[self.at.parent_block], 1, -1 do
                 local v = self.locals[self.at.parent_block][i]
@@ -576,9 +593,19 @@ function compile:main()
             break
         end
     end
-    self:push("PUSHNUM", 0)
-    self:push("CALL", self.funcs.main.label, 1)
-    self:push("NULL", "NULL", "NULL")
+
+	if self.should_abort then
+		self.file:flush()
+		os.exit()
+	end
+
+	if self.funcs.main then
+		self:push("CALL", self.funcs.main.label, 0)
+		self:push("NULL", "NULL", "NULL")
+	else
+		table.remove(self.bytecode, 1)
+		table.remove(self.bytecode, 1)
+	end
 
 	self:dump()
 

@@ -200,25 +200,27 @@ function parse:parseStruct()
     local i = 1
     while i <= #finish do
         local v = finish[i]
-        if self.datatypes[v.word] then
-            local memid = finish[i + 1]
-            if not memid or memid.typeof ~= "IDENTIFIER" then
+		local identifier = v
+		local datatype = finish[i + 2].word
+        if self.datatypes[datatype] then
+            if not identifier or identifier.typeof ~= "IDENTIFIER" then
                 self:throw(
-                    "In declaration of 'struct %s', expected identifier for member with datatype '%s', got non-id '%s'",
+                    "In declaration of struct '%s', expected identifier for member with datatype '%s', got non-id '%s'",
                     typename,
-                    v.word,
-                    memid and "null" or memid.word
+                    datatype,
+                    identifier and identifier.word or "null"
                 )
             end
-            members[finish[i + 1].word] = {
-                datatype = v.word;
-                identifier = finish[i + 1].word;
+            members[identifier.word] = {
+                datatype = datatype;
+                identifier = identifier.word;
+				typename = typename;
                 offset = sizeof;
             }
             sizeof = sizeof + 1
-            i = i + 2
+            i = i + 3
             if not finish[i] or finish[i].typeof ~= "SEMICOLON" then
-                self:throw("Expected ';' to close declaration of member '%s' of struct '%s'", memid.word, typename)
+                self:throw("Expected ';' to close declaration of member '%s' of struct '%s'", identifier.word, typename)
             end
         elseif v.typeof == "STRUCT" then
             self:throw(
@@ -226,9 +228,9 @@ function parse:parseStruct()
                 finish[i + 1] and finish[i + 1].word or "?",
                 typename
             )
-        else
-            i = i + 1
-        end
+		end
+		print(identifier.word, datatype)
+		i = i + 1
     end
     if sizeof == 0 then
         self:throw("Struct '%s' must have at least one member", typename)
@@ -240,10 +242,6 @@ function parse:parseStruct()
     }
 end
 
--- syntax possibilities:
---   <modifier*> x : datatype;          (declaration)
---   <modifier*> x : datatype = 10;     (assignment)
---   <modifier*> x := 10;               (assignment, compiler infers datatype)
 function parse:parseDeclaration()
     local modifiers = {}
     local identifier = self:gettok().word
