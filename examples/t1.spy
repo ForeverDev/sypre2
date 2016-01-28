@@ -36,10 +36,7 @@ func Vector3_add : null = (v0 : Vector3, v1 : Vector3) {
 // a sample factorial function
 func factorial : real = (n : real) {
 	
-	if n == 1 {
-		return 1;
-	}
-
+	return 1 if n == 1;
 	// recursion is supported!
 	return n * factorial(n - 1);
 

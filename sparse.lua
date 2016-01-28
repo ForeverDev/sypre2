@@ -342,8 +342,27 @@ function parse:main()
             self:inc()
             local chunk = self:createChunk(t.typeof, false)
             local expression, raw = self:parseExpressionUntil("SEMICOLON", nil)
-            chunk.expression = expression
-            chunk.expression.raw = raw
+			local found = false
+			for i, v in ipairs(expression) do
+				if v.typeof == "IF" then
+					local left = {}
+					local right = {}
+					for j = 1, i - 1 do
+						table.insert(left, expression[j])
+					end
+					for j = i + 1, #expression do
+						table.insert(right, expression[j])
+					end
+					chunk.expression = #left > 0 and left or nil 
+					chunk.condition = right
+					found = true
+					break
+				end
+			end
+			if not found then
+				chunk.expression = expression
+				chunk.expression.raw = raw
+			end
             self:pushIntoCurblock(chunk)
         elseif t.typeof == "BREAK" or t.typeof == "CONTINUE" then
             local chunk = self:createChunk(t.typeof, false)

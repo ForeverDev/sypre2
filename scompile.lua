@@ -518,8 +518,16 @@ function compile:compileReturn()
 	if datatype ~= self.current_function.rettype then
 		self:throw("Return statement in function '%s' evaluated to type '%s': it should evaluate to type '%s'", self.current_function.identifier, datatype, self.current_function.rettype)
 	end
-    self:push("SETRET")
-    self:addToFrontCurrentQueue("RET")
+	if self.condition then
+		self:compileExpression(self.at.condition)
+		self:push("JIF", self.labels)
+		self:push("SETRET")
+		self:addToFrontCurrentQueue("RET", "LABEL", self.labels)
+		self.labels = self.labels + 1
+	else
+		self:push("SETRET")
+		self:addToFrontCurrentQueue("RET")
+	end
 end
 
 function compile:branch()
