@@ -84,6 +84,7 @@ function compile:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
 	self.should_abort = true
     print(string.format("\nSPYRE COMPILE ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self.at.line))
+	os.exit()
 end
 
 function compile:assertLocal(l, name)
@@ -101,6 +102,9 @@ end
 function compile:dump()
     local i = 1
 	print("BYTECODE:")
+	for i, v in ipairs(self.bytecode) do
+		self.bytecode[i] = tostring(v)
+	end
     while i <= #self.bytecode do
         local opcode = self:getOpcode(tonumber(self.bytecode[i]))
         if opcode then
@@ -261,66 +265,105 @@ function compile:getLocal(identifier)
     end
 end
 
-function compile:compileExpression(expression, just_get_rpn)
-    local rpn = {}
-    local operators = {}
-    local i = 1
-    while i <= #expression do
-        local v = expression[i]
-        if v.typeof == "IDENTIFIER" and expression[i + 1] and expression[i + 1].typeof == "OPENPAR" then
-            local node = {
-                typeof = "FUNCTION_CALL";
-                arguments = {};
-				identifier = v.word;
-                func = self.funcs[v.word]
-            }
-            local args = {}
-            local expr = {}
-            local count = 1
-            i = i + 2
-            while count > 0 do
-                local a = expression[i]
-                if a.typeof == "OPENPAR" then
-                    count = count + 1
-                elseif a.typeof == "CLOSEPAR" then
-                    count = count - 1
-                end
-                if a.typeof == "COMMA" or count == 0 then
-                    table.insert(node.arguments, expr)
-                    expr = {}
-                else
-                    table.insert(expr, a)
-                end
-                i = i + 1
+function compile:compileFunctionCall(expression, start)
+	local fcall = {
+		typeof = "FUNCTION_CALL";
+		identifier = expression[start].word;
+		func = self.funcs[expression[start].word];
+		arguments = {};
+	}
+	local count = 1
+	start = start + 2
+	local i = start
+    while true do
+        if expression[i].typeof == "CLOSEPAR" then
+            count = count - 1
+            if count == 0 then
+                i = i - 1
+                break
             end
-            if node.func and #node.func.arguments ~= #node.arguments then
-                self:throw("Incorrect number of arguments when calling function '%s':  expected %d, got %d", v.word, #node.func.arguments, #node.arguments)
-            end
-            table.insert(rpn, node)
-        elseif v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" then
-            table.insert(rpn, v)
-        elseif v.typeof == "OPENPAR" then
-            table.insert(operators, v)
-        elseif compile.pres[v.typeof] then
-            while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" and compile.pres[v.typeof] <= compile.pres[operators[#operators].typeof] do
-                table.insert(rpn, table.remove(operators, #operators))
-            end
-            table.insert(operators, v)
-        elseif v.typeof == "CLOSEPAR" then
-            while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" do
-                table.insert(rpn, table.remove(operators, #operators))
-            end
-            table.remove(operators, #operators)
+        elseif expression[i].typeof == "OPENPAR" then
+            count = count + 1
         end
         i = i + 1
     end
-    while #operators > 0 do
-        table.insert(rpn, table.remove(operators, #operators))
+    -- i is now the last node in the last parameter
+    local index = start
+    local exp = {}
+	local function paste()
+		local t = {}
+		table.insert(fcall.arguments, t)
+		for i, v in ipairs(exp) do
+			table.insert(t, v)
+		end
+		exp = {}
+	end
+	while index <= i do
+		if expression[index].typeof == "IDENTIFIER" and expression[index + 1].typeof == "OPENPAR" then
+			local call, newidx = self:compileFunctionCall(expression, index)
+			index = newidx
+			table.insert(exp, call)
+		elseif expression[index].typeof == "COMMA" or expression[index].typeof == "CLOSEPAR" then
+			paste()
+        else
+            table.insert(exp, expression[index])
+        end
+        index = index + 1
     end
+	if #exp > 0 then
+		paste()
+	end
+    -- i + 1 points to the closing parenthesis
+    return fcall, i + 1
+end
+
+function compile:compileExpression(expression, just_get_rpn, is_rpn)
+	local rpn = {}
+	if is_rpn then
+		rpn = expression
+	else
+		local operators = {}
+		local i = 1
+		while i <= #expression do
+			local v = expression[i]
+			if v.typeof == "IDENTIFIER" and expression[i + 1] and expression[i + 1].typeof == "OPENPAR" then
+				-- FIXME
+				local fcall, newidx = self:compileFunctionCall(expression, i)
+				i = newidx
+				-- parsed correctly, somehow not working
+				for i, v in pairs(fcall.arguments) do for j, k in pairs(v) do print(k.typeof)
+					if k.typeof == "FUNCTION_CALL" then
+						for y, u in pairs(k.arguments) do
+							for w, e in pairs(u) do
+								print("\t" .. e.typeof)
+							end print() end	
+						end	
+				end end print()
+				table.insert(rpn, fcall)
+			elseif v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" then
+				table.insert(rpn, v)
+			elseif v.typeof == "OPENPAR" then
+				table.insert(operators, v)
+			elseif compile.pres[v.typeof] then
+				while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" and compile.pres[v.typeof] <= compile.pres[operators[#operators].typeof] do
+					table.insert(rpn, table.remove(operators, #operators))
+				end
+				table.insert(operators, v)
+			elseif v.typeof == "CLOSEPAR" then
+				while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" do
+					table.insert(rpn, table.remove(operators, #operators))
+				end
+				table.remove(operators, #operators)
+			end
+			i = i + 1
+		end
+		while #operators > 0 do
+			table.insert(rpn, table.remove(operators, #operators))
+		end
+	end
     if just_get_rpn then
         return rpn
     end
-
     local i = 1
     local lastp = nil
     local tops = {}
@@ -354,7 +397,7 @@ function compile:compileExpression(expression, just_get_rpn)
 			-- call spyre function
 			if v.func then
 				self:push("CALL", v.func.label, #v.func.arguments)
-				newtop(v.func.rettype, "(return type from '" .. v.identifier .. "' call")
+				newtop(v.func.rettype, "(return type from '" .. v.identifier .. "' call)")
 			-- call C function
 			else
 				-- C call format:
@@ -374,12 +417,16 @@ function compile:compileExpression(expression, just_get_rpn)
                 local other = false
                 if rpn[i + 1] and rpn[i + 2] then
                     if rpn[i + 1].typeof == "IDENTIFIER" and rpn[i + 2].typeof == "GETMEMBER" then
-                        local memoffset = self.datatypes[l.datatype].members[rpn[i + 1].word].offset
+                        local memoffset = self.datatypes[l.datatype].members[rpn[i + 1].word]
+						if not memoffset then
+							self:throw("Attempt to access field '%s' in a variable of type '%s'", rpn[i + 1].word, l.datatype)
+						end
+						memoffset = memoffset.offset
                         self:push("PUSHLOCAL", l.offset)
                         self:push("PUSHNUM", memoffset)
                         self:push("ADD")
                         self:push("GETMEM", self:comment("get member %s of local %s (typeof %s)", rpn[i + 1].word, l.identifier, l.datatype))
-						newtop(self.datatypes[l.datatype].members[rpn[i + 1].word].datatype.typename, "field " .. rpn[i + 1].word)
+						newtop(self.datatypes[l.datatype].members[rpn[i + 1].word].datatype, "field " .. rpn[i + 1].word)
                         i = i + 2
                     else
                         other = true

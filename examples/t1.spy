@@ -1,26 +1,16 @@
-struct Vector2 {
-	x : real;
-	y : real;
+func giv : real = (n : real) {
+	return n;
 }
 
-func Vector2_new : Vector2 = (x : real, y : real, z : real) {
-
-	v : strong new Vector2;
-	v.x = x;
-	v.y = y;
-	v.z = z;
-
-	return v;
-
+func swag : real = (n : real, m : real) {
+	return n;
 }
-
+	
 // the entry point
 func main : null = () {
 
-	pi : real = 3.14159265358979;
-
-	
-	
+	// should evaluate to 12
+	println(30 * swag(20, 10));
 
 	return;
 }
