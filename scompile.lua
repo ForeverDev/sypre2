@@ -166,7 +166,7 @@ function compile:push(...)
             if v == "CALL" then
                 self.offset = self.offset - tonumber(a[i + 2])
 			elseif v == "CCALL" then
-				self.offset = self.offset - tonumber(a[i + 2])
+				self.offset = self.offset - tonumber(a[i + 2]) + 1
             else
                 self.offset = self.offset + self:getOpcode(hex)[3]
             end
@@ -437,6 +437,7 @@ function compile:compileVariableAssignment()
 		self:throw("Attempt to assign an expression with an evaluated type of '%s' to a variable of type '%s'", datatype, l.datatype)
 	end
 	self:push("SETLOCAL", l.offset)
+	self.offset = self.offset + 1
 end
 
 function compile:compileVariableReassignment()

@@ -1,55 +1,15 @@
-// Spyre example code
-// by David Wilson
-// a simple data structure containing 3 real numbers
-struct Vector3 {
-	x : real;
-	y : real;
-	z : real;
-}
-
-// there is no object orientation yet in Spyre, so here we create
-// a function to construct a new Vector3 (similar to how you'd do it in C)
-func Vector3_new : Vector3 = (x : real, y : real, z : real) {
-
-	v : strong new Vector3;
-	v.x = x;
-	v.y = y;
-	v.z = z;
-
-	return v;
-
-}
-// this function takes two Vector3s by reference and adds them
-// into the first one.
-func Vector3_add : null = (v0 : Vector3, v1 : Vector3) {
-
-	v0.x = v0.x + v1.x;
-	v0.y = v0.y + v1.y;
-	v0.z = v0.z + v1.z;
-	
-	return;	
-
-}
-
-func factorial : real = (n : real) {
-
-	return 1 if n == 1;
-
-	return n * factorial(n - 1);
-
-}
-
 // the entry point
 func main : null = () {
 
-	position	: Vector3 = Vector3_new(50, 35, 10.33);
-	size		:= Vector3_new(200, 300, 400);
+	pi : real = 3.14159265358979;
 
-	Vector3_add(position, size);
+	x : real = max(5, 10, 15);
+	y : real = min(5, 10, 15);
+	z : real = sin(pi);
+	a : real = cos(pi);
+	b : real = max(pi, 2);
 
-	println(position.x, position.y, position.z);
-	println(size.x, size.y, size.z);
-	println(factorial(5), factorial(6), factorial(7));
+	println(x, y, z, a, b);
 	
 	return;
 }

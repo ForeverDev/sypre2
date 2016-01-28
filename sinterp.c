@@ -3,7 +3,7 @@
 #include <string.h>
 #include <math.h>
 #include "sapi.h"
-#include "sio.h"
+#include "slib.h"
 #include "sinterp.h"
 
 spy_state* spy_newstate() {
@@ -20,10 +20,6 @@ spy_state* spy_newstate() {
 	}
 	spy_loadlibs(S);
 	return S;
-}
-
-void spy_loadlibs(spy_state* S) {
-	spy_iolib_load(S);
 }
 
 u64 spy_malloc(spy_state* S, u64 size) {

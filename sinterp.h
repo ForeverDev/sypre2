@@ -48,7 +48,6 @@ spy_state*	spy_newstate();
 u64			spy_malloc(spy_state*, u64);
 void        spy_free(spy_state*, u64);
 void		spy_runtimeError(spy_state*, const s8*);
-void		spy_loadlibs(spy_state*);
 void		spy_dumpMemory(spy_state*);
 void		spy_run(spy_state*, const f64*, const f64*);
 void		spy_executeBinaryFile(spy_state*, const s8*);
