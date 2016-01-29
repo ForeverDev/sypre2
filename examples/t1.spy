@@ -1,6 +1,8 @@
+using "vector.spy"
+
 func main : null = () {
 
-	println(5);
+	v := Vector2_new(10, 20);
 
 	return;
 }
