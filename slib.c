@@ -58,6 +58,10 @@ static void spy_math_tan(spy_state* S, u64 nargs) {
 	spyL_push(S, tan(spyL_pop(S)));
 }
 
+static void spy_math_sqrt(spy_state* S, u64 nargs) {
+	spyL_push(S, sqrt(spyL_pop(S)));
+}
+
 void spy_loadlibs(spy_state* S) {
 	spyL_pushcfunction(S, spy_io_print, "print");
 	spyL_pushcfunction(S, spy_io_println, "println");
@@ -67,4 +71,5 @@ void spy_loadlibs(spy_state* S) {
 	spyL_pushcfunction(S, spy_math_sin, "sin");
 	spyL_pushcfunction(S, spy_math_cos, "cos");
 	spyL_pushcfunction(S, spy_math_tan, "tan");
+	spyL_pushcfunction(S, spy_math_sqrt, "sqrt");
 }

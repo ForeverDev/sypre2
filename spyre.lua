@@ -9,6 +9,18 @@ function main(file, output)
     local parse = dofile("sparse.lua")
     local compile = dofile("scompile.lua")
 
+	contents = contents:gsub("#using \".-\"", function(match)
+		local include = io.open(match:match("\"(.-)\""), "r")
+		if include then
+			local cont = include:read("*all")
+			include:close()
+			return cont
+		end
+		return ""
+	end)
+
+	print(contents)
+
 	local tree, datatypes = parse(lex(contents))
 
     return compile(tree, datatypes, output)

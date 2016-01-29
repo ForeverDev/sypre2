@@ -1,4 +1,0 @@
-func main : null = (filepath : string) {
-	
-	return;
-}

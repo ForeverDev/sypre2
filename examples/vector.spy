@@ -1,0 +1,22 @@
+struct Vector2 {
+	x			: real;
+	y			: real;
+	magnitude	: real;
+}
+
+func Vector2_new : Vector2 = (x : real, y : real) {
+	
+	v : strong new Vector2;
+	v.x = x;
+	v.y = y;
+	v.magnitude = sqrt(x*x + y*y);
+
+	return v;
+
+}
+
+func Vector2_normalize : Vector2 = (v : Vector2) {
+
+	return Vector2_new(v.x / v.magnitude, v.y / v.magnitude);
+
+}

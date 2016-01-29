@@ -168,7 +168,7 @@ function compile:push(...)
         if hex then
             table.insert(self.bytecode, hex)
             if v == "CALL" then
-                self.offset = self.offset - tonumber(a[i + 2])
+                self.offset = self.offset - tonumber(a[i + 2]) + 1
 			elseif v == "CCALL" then
 				self.offset = self.offset - tonumber(a[i + 2]) + 1
             else
@@ -447,9 +447,6 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 		end
 	end
     while i <= #rpn do
-		if rpn[i].typeof == "FUNCTION_CALL" then
-			print("LOL", #rpn[i].arguments[1])
-		end
         push(rpn[i])
         i = i + 1
     end
@@ -518,7 +515,7 @@ function compile:compileWhile()
 end
 
 function compile:compileFunction()
-    self:push("LABEL", self.labels)
+    self:push("LABEL", self.labels, self:comment("implement function %s", self.at.identifier))
     self.labels = self.labels + 1
     self.offset = 0
     for i = 1, #self.at.arguments do

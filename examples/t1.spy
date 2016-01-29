@@ -1,16 +1,12 @@
-func giv : real = (n : real) {
-	return n;
-}
+#using "examples/vector.spy"
 
-func swag : real = (n : real, m : real) {
-	return n;
-}
-	
-// the entry point
 func main : null = () {
 
-	// should evaluate to 12
-	println(30 * swag(swag(50, 100), 70));
+	v0 := Vector2_new(10, 25);
+	v1 := Vector2_normalize(v0);
+
+	println(v0.x, v0.y, v0.magnitude);
+	println(v1.x, v1.y, v1.magnitude);
 
 	return;
 }

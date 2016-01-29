@@ -11,6 +11,7 @@ static void		spy_math_cos(spy_state*, u64);
 static void		spy_math_tan(spy_state*, u64);
 static void		spy_math_rad(spy_state*, u64);
 static void		spy_math_deg(spy_state*, u64);
+static void		spy_math_sqrt(spy_state*, u64);
 
 void			spy_loadlibs(spy_state*);
 
