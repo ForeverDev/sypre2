@@ -10,7 +10,7 @@ func swag : real = (n : real, m : real) {
 func main : null = () {
 
 	// should evaluate to 12
-	println(30 * swag(20, 10));
+	println(30 * swag(swag(50, 100), 70));
 
 	return;
 }

@@ -319,47 +319,35 @@ end
 
 function compile:compileExpression(expression, just_get_rpn, is_rpn)
 	local rpn = {}
-	if is_rpn then
-		rpn = expression
-	else
-		local operators = {}
-		local i = 1
-		while i <= #expression do
-			local v = expression[i]
-			if v.typeof == "IDENTIFIER" and expression[i + 1] and expression[i + 1].typeof == "OPENPAR" then
-				-- FIXME
-				local fcall, newidx = self:compileFunctionCall(expression, i)
-				i = newidx
-				-- parsed correctly, somehow not working
-				for i, v in pairs(fcall.arguments) do for j, k in pairs(v) do print(k.typeof)
-					if k.typeof == "FUNCTION_CALL" then
-						for y, u in pairs(k.arguments) do
-							for w, e in pairs(u) do
-								print("\t" .. e.typeof)
-							end print() end	
-						end	
-				end end print()
-				table.insert(rpn, fcall)
-			elseif v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" then
-				table.insert(rpn, v)
-			elseif v.typeof == "OPENPAR" then
-				table.insert(operators, v)
-			elseif compile.pres[v.typeof] then
-				while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" and compile.pres[v.typeof] <= compile.pres[operators[#operators].typeof] do
-					table.insert(rpn, table.remove(operators, #operators))
-				end
-				table.insert(operators, v)
-			elseif v.typeof == "CLOSEPAR" then
-				while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" do
-					table.insert(rpn, table.remove(operators, #operators))
-				end
-				table.remove(operators, #operators)
+	local operators = {}
+	local i = 1
+	while i <= #expression do
+		local v = expression[i]
+		if v.typeof == "IDENTIFIER" and expression[i + 1] and expression[i + 1].typeof == "OPENPAR" then
+			-- FIXME
+			local fcall, newidx = self:compileFunctionCall(expression, i)
+			i = newidx
+			-- parsed correctly, somehow not working
+			table.insert(rpn, fcall)
+		elseif v.typeof == "IDENTIFIER" or v.typeof == "NUMBER" or v.typeof == "STRING" or v.typeof == "FUNCTION_CALL" then
+			table.insert(rpn, v)
+		elseif v.typeof == "OPENPAR" then
+			table.insert(operators, v)
+		elseif compile.pres[v.typeof] then
+			while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" and compile.pres[v.typeof] <= compile.pres[operators[#operators].typeof] do
+				table.insert(rpn, table.remove(operators, #operators))
 			end
-			i = i + 1
+			table.insert(operators, v)
+		elseif v.typeof == "CLOSEPAR" then
+			while #operators > 0 and operators[#operators].typeof ~= "OPENPAR" do
+				table.insert(rpn, table.remove(operators, #operators))
+			end
+			table.remove(operators, #operators)
 		end
-		while #operators > 0 do
-			table.insert(rpn, table.remove(operators, #operators))
-		end
+		i = i + 1
+	end
+	while #operators > 0 do
+		table.insert(rpn, table.remove(operators, #operators))
 	end
     if just_get_rpn then
         return rpn
@@ -373,13 +361,14 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 	local function typecheck()
 		local a = table.remove(tops, #tops)
 		local b = table.remove(tops, #tops)
-		if a[1] ~= b[1] then
+		if b and a[1] ~= b[1] then
 			-- TODO implement implicit casting
 			self:throw("Attempt to perform arithmetic on two different datatypes ('%s' %s and '%s' %s)", a[1], a[2], b[1], b[2])
 		end
 		newtop(a[1], a[2])
 	end
-    local function push(v)
+	local push
+    function push(v)
         if v.typeof == "FUNCTION_CALL" then
             for q = #v.arguments, 1, -1 do
 				local datatype = self:compileExpression(v.arguments[q])
@@ -456,8 +445,11 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 				self:push(v.typeof)
 			end
 		end
-    end
+	end
     while i <= #rpn do
+		if rpn[i].typeof == "FUNCTION_CALL" then
+			print("LOL", #rpn[i].arguments[1])
+		end
         push(rpn[i])
         i = i + 1
     end
