@@ -1,8 +1,0 @@
-using "vector.spy"
-
-func main : null = () {
-
-	v := Vector2_new(10, 20);
-
-	return;
-}

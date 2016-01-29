@@ -19,6 +19,23 @@ func Vector2_add : Vector2 = (v0 : Vector2, v1 : Vector2) {
 	return Vector2_new(v0.x + v1.x, v0.y + v1.y);
 }
 
+func Vector2_sub : Vector2 = (v0 : Vector2, v1 : Vector2) {
+	return Vector2_new(v0.x - v1.x, v0.y - v1.y);
+}
+
+func Vector2_mul : Vector2 = (v0 : Vector2, v1 : Vector2) {
+	return Vector2_new(v0.x * v1.x, v0.y * v1.y);
+}
+
+func Vector2_div : Vector2 = (v0 : Vector2, v1 : Vector2) {
+	return Vector2_new(v0.x / v1.x, v0.y / v1.y);
+}
+
 func Vector2_normalize : Vector2 = (v : Vector2) {
 	return Vector2_new(v.x / v.magnitude, v.y / v.magnitude);
+}
+
+func Vector2_print : null = (v : Vector2) {
+	println(v.x, v.y, v.magnitude);
+	return;
 }
