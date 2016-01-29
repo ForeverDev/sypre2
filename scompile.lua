@@ -370,6 +370,15 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 	local push
     function push(v)
         if v.typeof == "FUNCTION_CALL" then
+			if v.func then
+				if #v.arguments ~= #v.func.arguments then
+					self:throw("incorrect number of arguments when calling function '%s': expected %s, got %s",
+						v.identifier,
+						#v.func.arguments,
+						#v.arguments
+					)
+				end
+			end
             for q = #v.arguments, 1, -1 do
 				local datatype = self:compileExpression(v.arguments[q])
 				if v.func then
@@ -658,8 +667,6 @@ function compile:main()
 		table.remove(self.bytecode, 1)
 	end
 
-	self:dump()
-
 	for i = #self.bytecode, 1, -1 do
 		if self.bytecode[i]:sub(1, 1) == ";" then
 			table.remove(self.bytecode, i)
@@ -689,7 +696,6 @@ return function(tree, datatypes, output)
 
     compile_state:init(tree, datatypes, output)
     compile_state:main()
-    --compile_state:dump()
 
 
 end

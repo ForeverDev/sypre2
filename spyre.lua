@@ -1,7 +1,7 @@
 -- entry point to be called from main.c
 -- 'file' is relative path to .spy file
-function main(file, output)
-    local input = io.open(file, "r")
+function main(file, output, wd)
+    local input = io.open(wd .. "/" .. file, "r")
     local contents = input:read("*all")
     input:close()
 
@@ -9,8 +9,8 @@ function main(file, output)
     local parse = dofile("sparse.lua")
     local compile = dofile("scompile.lua")
 
-	contents = contents:gsub("#using \".-\"", function(match)
-		local include = io.open(match:match("\"(.-)\""), "r")
+	contents = contents:gsub("using \".-\"", function(match)
+		local include = io.open(wd .. "/" .. (file:match("(.+)/") or file) .. "/" .. match:match("\"(.-)\""), "r")
 		if include then
 			local cont = include:read("*all")
 			include:close()
@@ -18,8 +18,6 @@ function main(file, output)
 		end
 		return ""
 	end)
-
-	print(contents)
 
 	local tree, datatypes = parse(lex(contents))
 

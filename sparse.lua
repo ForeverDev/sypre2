@@ -229,7 +229,6 @@ function parse:parseStruct()
                 typename
             )
 		end
-		print(identifier.word, datatype)
 		i = i + 1
     end
     if sizeof == 0 then
@@ -418,7 +417,6 @@ return function(tokens)
 
     parse_state:init(tokens)
     parse_state:main()
-	parse_state:dump()
 
     return parse_state.tree, parse_state.datatypes
 

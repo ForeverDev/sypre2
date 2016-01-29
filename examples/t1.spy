@@ -1,13 +1,6 @@
-#using "examples/vector.spy"
-
 func main : null = () {
 
-	v0 := Vector2_new(10, 25);
-	v1 := Vector2_normalize(v0);
-
-	println(v0.x, v0.y, v0.magnitude);
-	println(v1.x, v1.y, v1.magnitude);
+	println(5);
 
 	return;
 }
-

@@ -4,6 +4,7 @@
 #include <lua.h>
 #include <lualib.h>
 #include <lauxlib.h>
+#include <unistd.h>
 #include "sinterp.c"
 
 int main(int argc, char** argv) {
@@ -14,11 +15,15 @@ int main(int argc, char** argv) {
 	}
 
 	if (argv[1][0] == 'c') {
+
+		char cwd[1024];
         lua_State* L;
+
+		getcwd(cwd, sizeof(cwd));
 
         L = luaL_newstate();
         luaL_openlibs(L);
-        if (luaL_dofile(L, "spyre.lua")) {
+        if (luaL_dofile(L, "/usr/local/share/spyre/spyre.lua")) {
             printf("\nSPYRE ERROR: could not run compiler (spyre.lua)\n\n");
             return 1;
         }
@@ -28,8 +33,11 @@ int main(int argc, char** argv) {
         lua_pushstring(L, argv[2]);
 		// push file name
 		lua_pushstring(L, argv[3]);
+		// push cur dir
+		lua_pushstring(L, cwd);
         // call entry point
-        if (lua_pcall(L, 2, 0, 0)) {
+
+        if (lua_pcall(L, 3, 0, 0)) {
             printf("\nSPYRE ERROR: compiler lua error:\n");
             printf("\t%s\n\n", lua_tostring(L, -1));
         }
