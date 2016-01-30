@@ -5,10 +5,12 @@ I'd like to thank Github for messing up the code indentation ;(
 
 Installation:
 
-`cd /usr/local/share
+```
+cd /usr/local/share
 git clone https://github.com/ForeverDev/spyre2 spyre
 cd spyre
-make`
+make
+```
 
 
 To compile a .spy file:
