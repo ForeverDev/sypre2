@@ -273,6 +273,7 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 			case 0x1f: {
 				u64 fptr = (u64)code[S->ip++] + SIZE_STACK + 1;
 				u64 nargs = (u64)code[S->ip++];
+				u64 flags = (u64)code[S->ip++];
 				u64 fnameptr = 0;
 				s8 fname[128];
 				s8 c = (s8)S->mem[fptr];

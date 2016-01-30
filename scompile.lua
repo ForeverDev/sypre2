@@ -26,7 +26,7 @@ compile.opcodes = {
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
 	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1},
-    {"SETRET", 0, -1},		{"CCALL", 2, 0}
+    {"SETRET", 0, -1},		{"CCALL", 3, 0}
 }
 
 compile.pres = {
@@ -379,6 +379,8 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 					)
 				end
 			end
+			-- TODO fix arg order
+			local types = {}
             for q = #v.arguments, 1, -1 do
 				local datatype = self:compileExpression(v.arguments[q])
 				if v.func then
@@ -391,6 +393,7 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 						)
 					end
 				end
+				table.insert(types, datatype)
 			end
 			-- call spyre function
 			if v.func then
@@ -401,11 +404,19 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 				-- C call format:
 				-- push arg0
 				-- push arg1 ...
-				-- push func name pointer
-				-- ccall, fptr, numargs
+				-- ccall, fptr, numargs, flag_descriptor
+				local flag = 0
+				local masks = {
+					["real"]	= 0x01;
+					["string"]	= 0x02;
+					["pointer"] = 0x03;
+				}
+				for i, v in ipairs(datatype) do
+					flag = (flag | (masks[v] or masks.pointer)) << 2
+				end
 				self:writeConstant(v.identifier)
 				local fname = self:getConstant(v.identifier)
-				self:push("CCALL", fname, #v.arguments, self:comment("call c function %s", v.identifier))
+				self:push("CCALL", fname, #v.arguments, flag, self:comment("call c function %s", v.identifier))
 				newtop("real", fname)
 			end
         elseif v.typeof == "IDENTIFIER" then
@@ -644,7 +655,45 @@ function compile:branch()
 end
 
 function compile:optimize()
-
+--[[
+	local function push(i, ...)
+		local a = {...}
+		for j, v in ipairs(a) do
+			local hex = self:getHexcode(v)
+			if hex then
+				table.insert(self.bytecode, i, hex)
+			else
+				table.insert(self.bytecode, i, v)
+			end
+		end
+	end
+	local i = 1
+	while i < #self.bytecode do
+        local opcode = self:getOpcode(tonumber(self.bytecode[i]))
+		local did = false
+		if opcode then
+			print(opcode[1])
+			if self.bytecode[i + 5] then
+				local noperand = self:getOpcode(tonumber(self.bytecode[i + 2]))
+				local noperator = self:getOpcode(tonumber(self.bytecode[i + 3]))
+				if opcode[1] == "PUSHNUM" and nop and nop[1] == "PUSHNUM" then
+					local a, b = self.bytecode[i + 1], self.bytecode[i + 3]
+					for j = 1, 5 do
+						table.remove(self.bytecode, j)
+					end
+					print(self.bytecode[i + 1], self.bytecode[i + 3])
+					push(i, "PUSHNUM", self.bytecode[i + 1] + self.bytecode[i + 3])
+					did = true
+					i = 0
+				end
+			end	
+			if not did then
+				i = i + opcode[2]
+			end
+		end
+		i = i + 1
+	end	
+--]]
 end
 
 function compile:main()
@@ -670,6 +719,8 @@ function compile:main()
 		table.remove(self.bytecode, 1)
 		table.remove(self.bytecode, 1)
 	end
+
+	self:optimize()
 
 	for i = #self.bytecode, 1, -1 do
 		if self.bytecode[i]:sub(1, 1) == ";" then
