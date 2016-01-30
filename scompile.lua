@@ -643,6 +643,10 @@ function compile:branch()
     end
 end
 
+function compile:optimize()
+
+end
+
 function compile:main()
     self:push("JMP", 0)
     self:addToQueue("LABEL", 0)
@@ -687,12 +691,13 @@ function compile:main()
 	for i, v in ipairs(self.bytecode) do
 		self:pushData("d", v)
 	end
+
+	self.file:close()
 end
 
 return function(tree, datatypes, output)
 
     local compile_state = setmetatable({}, {__index = compile})
-
 
     compile_state:init(tree, datatypes, output)
     compile_state:main()

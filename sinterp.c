@@ -308,7 +308,7 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 			holds the location of the first byte of code
 */
 void spy_executeBinaryFile(spy_state* S, const s8* filename) {
-	FILE* f = fopen(filename, "rb");
+	FILE* f = fopen(filename, "r");
 	u64 fsize;
 	s8* fcontents;
 	f64 code[65536];
