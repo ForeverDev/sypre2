@@ -14,13 +14,17 @@ Installation:
 
 To compile a .spy file:
 
-`spy c (input_filename).spy (compiled_filename)`
+`spy -c input_filename.spy -o compiled_filename.spyb`
 
 
 To run a compiled file:
 
-`spy r (compiled_filename)`
+`spy -r compiled_filename.spyb`
 
+
+To do it all in one step, then throw away the compiled file:
+
+`spy input_filename.spy`
 
 **IMAGES**
 
