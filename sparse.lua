@@ -5,10 +5,11 @@
 
 local parse = {}
 
-function parse:init(tokens)
+function parse:init(tokens, filename)
     self.tree               = {}
     self.index              = 1
     self.tokens             = tokens
+	self.filename			= filename
     self.curblock           = nil
     self.datatypes = {
         ["real"]            = {sizeof = 1, typename = "real"};
@@ -49,7 +50,7 @@ end
 function parse:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
     local token = self:gettok()
-    print(string.format("\nSPYRE PARSE ERROR: \n\tMESSAGE: %s\n\tLINE: %s\n", message, token and tostring(token.line) or "?"))
+    print(string.format("\nSPYRE ERROR: \n\tFILE: %s\n\tMESSAGE: %s\n\tLINE: %s\n", self.filename, message, token and tostring(token.line) or "?"))
     os.exit()
 end
 
@@ -156,7 +157,7 @@ function parse:parseFunc()
     self:inc(2)
     chunk.rettype = self:gettok().word
     self:checkDatatype(chunk.rettype)
-    self:inc(3)
+    self:inc(2)
     local args, raw = self:parseExpressionUntil("CLOSEPAR", nil)
     local i = 1
     while i <= #args do
@@ -411,11 +412,11 @@ function parse:main()
 
 end
 
-return function(tokens)
+return function(tokens, filename)
 
     local parse_state = setmetatable({}, {__index = parse})
 
-    parse_state:init(tokens)
+    parse_state:init(tokens, filename)
     parse_state:main()
 
     return parse_state.tree, parse_state.datatypes

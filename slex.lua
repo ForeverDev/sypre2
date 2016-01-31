@@ -47,7 +47,7 @@ lex.token_grammar = {
     ["return"]      = "RETURN";
     ["continue"]    = "CONTINUE";
     ["break"]       = "BREAK";
-    ["struct"]      = "STRUCT";
+    ["type"]      = "STRUCT";
     ["real"]        = "DATATYPE";
     ["string"]      = "DATATYPE";
     ["weak"]        = "MODIFIER";
@@ -55,17 +55,18 @@ lex.token_grammar = {
     ["new"]         = "MODIFIER";
 }
 
-function lex:init(contents)
+function lex:init(contents, filename)
     self.source         = contents
     self.index          = 1
     self.line           = 1
     self.tokens         = {}
+	self.filename		= filename
 end
 
 function lex:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
-    print(string.format("\nSPYRE LEX ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self.line))
-    error()
+    print(string.format("\nSPYRE ERROR: \n\tFILE: %s\n\tMESSAGE: %s\n\tLINE: %d\n", self.filename, message, self.line))
+    os.exit()
 end
 
 function lex:inc(i)
@@ -123,6 +124,7 @@ function lex:generate()
 
     while self:space() do
         local c = self:getchar()
+		local n = self:peek(1)
         if c ~= " " then
             -- newline
             if c == "\n" then
@@ -138,23 +140,17 @@ function lex:generate()
                 local str = c
                 self:inc()
                 c = self:getchar()
-                while c ~= "\"" do
-                    c = self:getchar()
-                    str = str .. c
-                    self:inc()
-                end
+				if c == "\"" then
+					self:inc()
+				else
+					while c ~= "\"" do
+						c = self:getchar()
+						str = str .. c
+						self:inc()
+					end
+				end
                 self:pushtoken(str)
                 self:dec()
-            -- operator
-            elseif c:match("%p") or c == ";" then
-                local nxt = self:peek(1)
-                if lex.token_grammar[c .. nxt] then
-                    -- found double operator
-                    self:pushtoken(c .. nxt)
-                    self:inc()
-                else
-                    self:pushtoken(c)
-                end
             -- number
             elseif c:match("%d") then
                 local num = ""
@@ -163,8 +159,24 @@ function lex:generate()
                     self:inc()
                     c = self:getchar()
                 end
+				local t0 = self.tokens[#self.tokens].typeof
+				local t1 = self.tokens[#self.tokens - 1].typeof
+				if t0 == "MINUS" and t1 ~= "IDENTIFIER" and t1 ~= "NUMBER" then
+					num = "-" .. num
+					table.remove(self.tokens, #self.tokens)
+				end
                 self:pushtoken(num)
                 self:dec()
+            -- operator
+            elseif c:match("%p") or c == ";" or c == "%" then
+                local nxt = self:peek(1)
+                if lex.token_grammar[c .. nxt] then
+                    -- found double operator
+                    self:pushtoken(c .. nxt)
+                    self:inc()
+                else
+                    self:pushtoken(c)
+                end
             -- keyword or identifier
             else
                 local id = ""
@@ -184,11 +196,11 @@ function lex:generate()
 
 end
 
-return function(contents)
+return function(contents, filename)
 
     local lex_state = setmetatable({}, {__index = lex})
 
-    lex_state:init(contents)
+    lex_state:init(contents, filename)
     lex_state:generate()
 
     return lex_state.tokens

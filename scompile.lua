@@ -20,13 +20,13 @@ compile.opcodes = {
     {"PUSHPTR", 0, 0},      {"POP", 0, -1},             {"ADD", 0, -1},
     {"SUB", 0, -1},         {"MUL", 0, -1},             {"DIV", 0, -1},
     {"AND", 0, -1},         {"OR", 0, -1},              {"NOT", 0, -1},
-    {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 1, -2},
+    {"EQ", 0, -1},          {"PUSHLOCAL", 1, 1},        {"SETLOCAL", 1, -1},
     {"PUSHARG", 1, 1},      {"CALL", 2, 3},             {"RET", 0, -2},
     {"JMP", 1, 0},          {"JIT", 1, -1},             {"JIF", 1, -1},
     {"MALLOC", 1, 1},       {"SETMEM", 0, -2},          {"GETMEM", 0, 0},
 	{"LABEL", 1, 0},		{"GT", 0, -1},				{"GE", 0, -1},
 	{"LT", 0, -1},			{"LE", 0, -1},              {"FREE", 0, -1},
-    {"SETRET", 0, -1},		{"CCALL", 3, 0}
+    {"SETRET", 0, -1},		{"CCALL", 3, 0},			{"MOD", 0, -1}
 }
 
 compile.pres = {
@@ -42,6 +42,7 @@ compile.pres = {
     ["PLUS"]        = 2;
     ["MINUS"]       = 2;
 
+	["MODULUS"]		= 3;
     ["MULTIPLY"]    = 3;
     ["DIVIDE"]      = 3;
 
@@ -50,13 +51,35 @@ compile.pres = {
 
 }
 
+-- storing corefuncs here is necessary because C
+-- doesn't do any typechecking at runtime, all
+-- typechecking is done at compile time
+-- [IDENTIFIER] = { RETTYPE, ARGS }
+compile.corefuncs = {
+	["println"] = {"real", "..."},
+	["print"]	= {"real", "..."},
+	
+	["max"]		= {"real", "real..."},
+	["min"]		= {"real", "real..."},
+	["sin"]		= {"real", "real"},
+	["cos"]		= {"real", "real"},
+	["tan"]		= {"real", "real"},
+	["rad"]		= {"real", "real"},
+	["deg"]		= {"real", "real"},
+	["sqrt"]	= {"real", "real"},
+	["map"]		= {"real", "real", "real", "real", "real", "real"},
+	["squish"]	= {"real", "real", "real", "real"}
+}
+
 compile.SHOW_COMMENTS = true 
 
-function compile:init(tree, datatypes, output)
+function compile:init(tree, datatypes, output, should_dump, filename)
     self.tree                   = tree
     self.datatypes              = datatypes
     self.at                     = tree[1]
     self.atblock                = tree[1].block
+	self.should_dump			= should_dump
+	self.filename				= filename
 	self.file					= io.open(output, "w")
     self.offset                 = 0
 	self.labels					= 0
@@ -73,6 +96,28 @@ function compile:init(tree, datatypes, output)
 	self.const_ptrs				= {}
 	self.const_memory			= {}
 
+	for i, v in pairs(compile.corefuncs) do
+		self.funcs[i] = {}
+		self.funcs[i].is_C = true
+		self.funcs[i].identifier = i
+		self.funcs[i].rettype = v[1]
+		if v[2]:sub(-3, -1) == "..." then
+			self.funcs[i].vararg = true
+			if v[2]:sub(1, 1) ~= "." then
+				self.funcs[i].vararg_type = v[2]:match("(.-)%.%.%.$")
+			end
+		else
+			self.funcs[i].arguments = {}
+			for j = 2, #v do
+				table.insert(self.funcs[i].arguments, {
+					identifier = "?";
+					modifiers = {};
+					datatype = v[j];	
+				})
+			end
+		end
+	end
+
 	setmetatable(self.bytecode, {
 		__newindex = function(_, k, v)
 			rawset(self.bytecode, k, tostring(v))
@@ -83,7 +128,7 @@ end
 function compile:throw(msgformat, ...)
     local message = string.format(msgformat, ...)
 	self.should_abort = true
-    print(string.format("\nSPYRE COMPILE ERROR: \n\tMESSAGE: %s\n\tLINE: %d\n", message, self.at.line))
+    print(string.format("\nSPYRE ERROR: \n\tFILE: %s\n\tMESSAGE: %s\n\tLINE: %d\n", self.filename, message, self.at.line))
 	os.exit()
 end
 
@@ -101,29 +146,52 @@ end
 
 function compile:dump()
     local i = 1
-	print("BYTECODE:")
+	print("LINE" .. string.rep(" ", 7) .. "| BYTECODE" .. string.rep(" ", 23) .. "| COMMENTS")
+	for j = 1, 3 do
+		print(string.rep(" ", 11) .. "|" .. string.rep(" ", 32) .. "|")
+	end
 	for i, v in ipairs(self.bytecode) do
 		self.bytecode[i] = tostring(v)
 	end
     while i <= #self.bytecode do
+		local n = self.bytecode[i]:sub(5)
+		n = n == "nil" and "" or n
+		local towrite = n .. string.rep(" ", 10 - n:len()) .. " | "
+		if n ~= "" then
+			i = i + 1
+		end
         local opcode = self:getOpcode(tonumber(self.bytecode[i]))
         if opcode then
+			if towrite then
+				io.write(towrite)
+			end
 			local len = 0
 			if opcode[1] ~= "LABEL" then
 				io.write("\t")
-				len = len + 4
+				len = len + 3
 			end
 			local len = len + #opcode[1]
 			io.write(opcode[1] .. " ")
 			local nargs = opcode[2]
 			i = i + 1
 			for j = 1, nargs do
-				len = len + #self.bytecode[i]
-				io.write(self.bytecode[i] .. " ")
+				local n = tonumber(self.bytecode[i])
+				local leading;
+				if n then
+					leading = (
+						n < 2^8 and "02" or
+						n < 2^16 and "04" or
+						n < 2^32 and "08" or "016"
+					)
+				end
+				local out = string.format("0x%" .. (leading or "02") .. "x", math.floor(n or 0)) .. " "
+				len = len + #out
+				io.write(out)
 				i = i + 1
 			end
+			io.write(string.rep(" ", 30 - len) .. "|")
 			if self.bytecode[i] and self.bytecode[i]:sub(1, 1) == ";" then
-				io.write(string.rep(" ", 23 - len) .. self.bytecode[i])
+				io.write(self.bytecode[i]:sub(2))
 				i = i + 1
 			end
 			print()
@@ -162,6 +230,7 @@ function compile:getOpcode(hexcode)
 end
 
 function compile:push(...)
+	table.insert(self.bytecode, "LINE" .. (tostring(self.at.line) or "?"))
     local a = {...}
     for i, v in ipairs(a) do
         local hex = self:getHexcode(v)
@@ -185,14 +254,17 @@ function compile:push(...)
 end
 
 function compile:popLocals()
+	if not self.locals[self.at.parent_block] then
+		return
+	end
 	for i = #self.locals[self.at.parent_block], 1, -1 do
 		local v = self.locals[self.at.parent_block][i]
 		if not v.isarg then
 			local v = self.locals[self.at.parent_block][i]
 			if v.modifiers.strong or v.datatype == "real" then
-				self:push("POP")
+				self:push("POP", self:comment("pop local %s", v.identifier))
 			else
-				self:push("FREE")
+				self:push("FREE", self:comment("free local %s", v.identifier))
 			end
 		end
 	end
@@ -221,19 +293,18 @@ function compile:addToQueue(...)
 	table.insert(self.queue, {...})
 end
 
-function compile:addToCurrentQueue(...)
+function compile:addToCurrentQueueBack(...)
     for i, v in ipairs{...} do
         table.insert(self.queue[#self.queue], v)
     end
 end
 
-function compile:addToFrontCurrentQueue(...)
+function compile:addToCurrentQueueFront(...)
     local a = {...}
     for i = #a, 1, -1 do
         table.insert(self.queue[#self.queue], 1, a[i])
     end
 end
-
 
 function compile:popFromQueue()
 	if #self.queue == 0 then
@@ -370,7 +441,7 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 	local push
     function push(v)
         if v.typeof == "FUNCTION_CALL" then
-			if v.func then
+			if v.func and not v.func.vararg then
 				if #v.arguments ~= #v.func.arguments then
 					self:throw("incorrect number of arguments when calling function '%s': expected %s, got %s",
 						v.identifier,
@@ -383,20 +454,29 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 			local types = {}
             for q = #v.arguments, 1, -1 do
 				local datatype = self:compileExpression(v.arguments[q])
-				if v.func then
+				if v.func and v.func.vararg and v.func.vararg_type then
+					if datatype ~= v.func.vararg_type then
+						self:throw("Attempt to pass argument of type '%s' to function '%s': argument should be of type '%s' (argument %s)",
+							datatype,
+							v.func.identifier,
+							v.func.vararg_type,
+							#v.arguments - q + 1
+						)
+					end
+				elseif v.func and not v.func.vararg then
 					if datatype ~= v.func.arguments[q].datatype then
 						self:throw("Attempt to pass argument of type '%s' to function '%s': argument should be of type '%s' (argument %s)",
 							datatype,
 							v.func.identifier,
 							v.func.arguments[q].datatype,
-							#v.arguments - q
+							#v.arguments - q + 1
 						)
 					end
 				end
 				table.insert(types, datatype)
 			end
 			-- call spyre function
-			if v.func then
+			if v.func and not v.func.is_C then
 				self:push("CALL", v.func.label, #v.func.arguments)
 				newtop(v.func.rettype, "(return type from '" .. v.identifier .. "' call)")
 			-- call C function
@@ -407,18 +487,24 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 				-- ccall, fptr, numargs, flag_descriptor
 				local flag = 0
 				local masks = {
+					["null"]	= 0x00;
 					["real"]	= 0x01;
 					["string"]	= 0x02;
 					["pointer"] = 0x03;
 				}
-				for i, v in ipairs(datatype) do
-					flag = (flag | (masks[v] or masks.pointer)) << 2
+				for i, v in ipairs(types) do
+					flag = (flag | (masks[v] or masks.pointer)) << (i ~= #types and 2 or 0)
 				end
 				self:writeConstant(v.identifier)
 				local fname = self:getConstant(v.identifier)
 				self:push("CCALL", fname, #v.arguments, flag, self:comment("call c function %s", v.identifier))
 				newtop("real", fname)
 			end
+		elseif v.typeof == "STRING" then
+			self:writeConstant(v.word)
+			local ptr = self:getConstant(v.word)
+			self:push("PUSHNUM", ptr)
+			newtop("string", v.identifier)
         elseif v.typeof == "IDENTIFIER" then
             local l = self:getLocal(v.word)
             self:assertLocal(l, v.word)
@@ -445,7 +531,7 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
                 end
                 if other then
 					newtop(l.datatype, l.identifier)
-                    self:push("PUSHLOCAL", l.offset)
+                    self:push("PUSHLOCAL", l.offset, self:comment("load local %s", l.identifier))
                 end
             end
         elseif v.typeof == "NUMBER" then
@@ -461,7 +547,9 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 				self:push("MUL")
 			elseif v.typeof == "DIVIDE" then
 				self:push("DIV")
-			elseif v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" or v.typeof == "EQ" then
+			elseif v.typeof == "MODULUS" then
+				self:push("MOD")
+			elseif	v.typeof == "GT" or v.typeof == "GE" or v.typeof == "LT" or v.typeof == "LE" or v.typeof == "EQ" then
 				self:push(v.typeof)
 			end
 		end
@@ -477,23 +565,22 @@ function compile:compileVariableDeclaration()
     if self.at.modifiers.new then
         self:push("MALLOC", self.datatypes[self.at.datatype].sizeof)
     else
-        self:push("PUSHNUM", 0);
+        self:push("PUSHNUM", 0, self:comment("placeholder for %s", self.at.identifier));
     end
     self:pushLocal(self.at)
 end
 
 function compile:compileVariableAssignment()
-	self:push("PUSHNUM", 0)
-    self:pushLocal(self.at)
     local datatype = self:compileExpression(self.at.expression)
+    self:pushLocal(self.at)
 	local l = self:getLocal(self.at.identifier)
 	if l.datatype == "__INFER__" then
 		l.datatype = datatype
 	elseif datatype ~= l.datatype then
 		self:throw("Attempt to assign an expression with an evaluated type of '%s' to a variable of type '%s'", datatype, l.datatype)
 	end
-	self:push("SETLOCAL", l.offset)
-	self.offset = self.offset + 1
+	--self:push("SETLOCAL", l.offset, self:comment("setlocal %s", l.identifier))
+	--self.offset = self.offset + 1
 end
 
 function compile:compileVariableReassignment()
@@ -518,18 +605,18 @@ end
 
 function compile:compileIf()
 	self:compileExpression(self.at.condition)
-	self:push("JIF", self.labels)
+	self:push("JIF", self.labels, self:comment("if"))
 	self:addToQueue("LABEL", self.labels)
 	self.labels = self.labels + 1
 end
 
 function compile:compileWhile()
-	self:push("LABEL", self.labels)
+	self:push("LABEL", self.labels, self:comment("while %d", self.labels))
     table.insert(self.loop_starts, self.labels)
 	self.labels = self.labels + 1
 	self:compileExpression(self.at.condition)
 	self:push("JIF", self.labels)
-	self:addToQueue("JMP", self.labels - 1, "LABEL", self.labels)
+	self:addToQueue("JMP", self.labels - 1, "LABEL", self.labels, self:comment("end while %d", self.labels - 1))
     table.insert(self.loop_ends, self.labels)
 	self.labels = self.labels + 1
 end
@@ -544,7 +631,7 @@ function compile:compileFunction()
         arg.isarg = true
         self:pushLocal(arg)
     end
-    self:addToQueue()
+    --self:addToQueue()
     self.funcs[self.at.identifier] = {
         label = self.labels - 1;
         arguments = self.at.arguments;
@@ -575,6 +662,16 @@ function compile:compileBreak()
         self:compileExpression(self.at.condition)
         self:push("JIT", self.loop_ends[#self.loop_ends])
     else
+		local start = self.at
+		self.at = self.at.parent_block.parent_chunk
+		while self.at.typeof ~= "WHILE" and self.at.typeof ~= "FOR" do
+			self:popLocals()
+			if not self.at.parent_block then
+				break
+			end
+			self.at = self.at.parent_block.parent_chunk
+		end
+		self.at = start
         self:push("JMP", self.loop_ends[#self.loop_ends])
     end
 end
@@ -600,7 +697,7 @@ function compile:compileReturn()
 		self.labels = self.labels + 1
 	else
 		self:push("SETRET")
-		self:addToFrontCurrentQueue("RET")
+		self:addToQueue("RET")
 	end
 end
 
@@ -614,6 +711,7 @@ function compile:branch()
 			return
 		end
         while not self.at.parent_block[self.at.block_index + 1] do
+			self:popLocals()
             self.at = self.at.parent_block.parent_chunk
             self.atblock = self.at.parent_block
 			self:popFromQueue()
@@ -651,6 +749,7 @@ function compile:branch()
         self:compileReturn()
     elseif t == "EXPRESSION" then
         self:compileExpression(self.at.expression)
+		self:push("POP", self:comment("pop unused expression"))
     end
 end
 
@@ -721,9 +820,12 @@ function compile:main()
 	end
 
 	self:optimize()
+	if self.should_dump then
+		self:dump()
+	end
 
 	for i = #self.bytecode, 1, -1 do
-		if self.bytecode[i]:sub(1, 1) == ";" then
+		if self.bytecode[i]:sub(1, 1) == ";" or self.bytecode[i]:sub(1, 4) == "LINE" then
 			table.remove(self.bytecode, i)
 		end
 	end
@@ -746,13 +848,12 @@ function compile:main()
 	self.file:close()
 end
 
-return function(tree, datatypes, output)
+return function(tree, datatypes, output, should_dump, filename)
 
     local compile_state = setmetatable({}, {__index = compile})
 
-    compile_state:init(tree, datatypes, output)
+    compile_state:init(tree, datatypes, output, should_dump, filename)
     compile_state:main()
-
 
 end
 

@@ -3,8 +3,9 @@
 
 local abs = "/usr/local/share/spyre/"
 
-function main(file, output, wd)
-    local input = io.open(wd .. "/" .. file, "r")
+function main(file, output, wd, flags)
+	local filename = wd .. "/" .. file
+    local input = io.open(filename, "r")
     local contents = input:read("*all")
     input:close()
 	
@@ -31,18 +32,18 @@ function main(file, output, wd)
 			included[filename] = true
 			local cont = include:read("*all")
 			include:close()
-			for i, v in ipairs(lex(cont)) do
+			for i, v in ipairs(lex(cont, filename)) do
 				table.insert(tokens, v)
 			end
 		end
 		return ""
 	end)
 
-	for i, v in ipairs(lex(contents)) do
+	for i, v in ipairs(lex(contents, filename)) do
 		table.insert(tokens, v)	
 	end
-	
-	local tree, datatypes = parse(tokens, include)
 
-    return compile(tree, datatypes, wd .. "/" .. output)
+	local tree, datatypes = parse(tokens, include, filename)
+
+    return compile(tree, datatypes, wd .. "/" .. output, flags & 0x01 == 1, filename)
 end

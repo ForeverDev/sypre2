@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 #include "sapi.h"
 #include "slib.h"
 #include "sinterp.h"
@@ -77,7 +78,27 @@ void spy_dumpMemory(spy_state* S) {
 	printf("---POINTERS---\n\n");
 }
 
+void* spy_startGarbageCollection(void* _S) {
+
+	spy_state* S = (spy_state*)_S;
+	
+	while (1) {
+		usleep(1000000);
+		u64 memleft = 0;
+		for (u64 i = S->varmem; i < SIZE_MEM; i++) {
+			if (!S->marks[i]) memleft++;
+		}
+		if (memleft < (f64)SIZE_MEM / 3) {
+			puts("TRIGGER");
+		}
+	}
+
+	return NULL;
+
+}
+
 void spy_run(spy_state* S, const f64* code, const f64* mem) {
+	// load constant memory and parse labels
 	u64 memptr = 0;
 	while (mem[memptr] != 0x00 || mem[memptr + 1] != 0x00 || mem[memptr + 2] != 0x00) {
 		S->mem[SIZE_STACK + memptr + 1] = mem[memptr];
@@ -85,6 +106,9 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 		memptr++;
 	}
 	S->marks[SIZE_STACK + memptr + 1] = 1;
+	S->varmem = SIZE_STACK + memptr + 2;
+
+	S->ip = 0;
 	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00) {
 		const s8 opcode = (u8)code[S->ip];
 		S->ip++;
@@ -93,6 +117,11 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 		}
 	}
 	S->ip = 0;
+
+	// start the garbage collection thread
+	pthread_t gc;
+	pthread_create(&gc, NULL, spy_startGarbageCollection, S);
+
 	while (1) {
 		if (S->sp <= 0) {
 			spy_runtimeError(S, "stack overflow");
@@ -286,7 +315,7 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 				u8 found = 0;
 				for (u64 i = 0; i < S->cfp; i++) {
 					if (!strncmp(S->cfuncs[i].identifier, fname, fnameptr)) {
-						S->cfuncs[i].f(S, nargs);
+						S->cfuncs[i].f(S, nargs, flags);
 						found = 1;
 						break;
 					}
@@ -296,6 +325,12 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 				}
 				break;
 			}
+			// MOD
+			case 0x20: {
+				u64 b = (u64)S->mem[S->sp++];
+				S->mem[--S->sp] = (u64)S->mem[S->sp++] % b;
+				break;
+			}	
 		}
 	}
 }

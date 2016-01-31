@@ -12,6 +12,9 @@
 #define MASK_DOBOTH		0x04
 #define MASK_NOOPT		0x08
 #define MASK_OUTPUT		0x10
+#define MASK_DUMP		0x20
+
+unsigned int args;
 
 static void run_file(const char* inputfn) {
 	spy_state* S = spy_newstate();
@@ -38,9 +41,11 @@ static void compile_file(const char* inputfn, const char* outputfn) {
 	lua_pushstring(L, outputfn);
 	// push cur dir
 	lua_pushstring(L, cwd);
+	// push lua flags
+	lua_pushinteger(L, args >> 5);
 	// call entry point
 
-	if (lua_pcall(L, 3, 0, 0)) {
+	if (lua_pcall(L, 4, 0, 0)) {
 		printf("\nSPYRE ERROR: compiler lua error:\n");
 		printf("\t%s\n\n", lua_tostring(L, -1));
 	}
@@ -56,7 +61,7 @@ static void do_file(const char* inputfn) {
 
 int main(int argc, char** argv) {
 
-	unsigned int args = 0;
+	args = 0;
 	unsigned int i = 1;
 	char outputfn[128];
 	char inputfn[128];
@@ -78,11 +83,13 @@ int main(int argc, char** argv) {
 		} else if (!strncmp(argv[i], "-o", 2)) {
 			args |= MASK_OUTPUT;
 			memcpy(outputfn, argv[++i], 128);
+		} else if (!strncmp(argv[i], "-d", 2)) {
+			args |= MASK_DUMP;
 		} else {
 			memcpy(soloarg, argv[i], 128);
 		}
 	}
-	
+
 	if (args & MASK_COMPILE) {
 		compile_file(inputfn, (args & MASK_OUTPUT) ? outputfn : "a.spyb");
     } else if (args & MASK_RUN) {
