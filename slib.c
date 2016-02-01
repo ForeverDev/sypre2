@@ -7,6 +7,7 @@
 static void spy_io_print(spy_state* S, u64 nargs, u64 flags) {
 	for (u64 i = 0; i < nargs; i++) {
 		u8 type = (u8)(flags & 0x03);
+		flags >>= 2;
 		if (type == TYPE_REAL) {
 			f64 n = spyL_toreal(S);
 			if ((u64)n == n) {
@@ -21,7 +22,6 @@ static void spy_io_print(spy_state* S, u64 nargs, u64 flags) {
 		} else if (type == TYPE_PTR) {
 			printf("0x%08llx", (u64)spyL_toreal(S));
 		}
-		flags >>= 2;
 		if (i != nargs - 1) {
 			printf("\t");
 		}

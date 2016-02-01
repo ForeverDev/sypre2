@@ -573,16 +573,16 @@ function compile:compileVariableDeclaration()
 end
 
 function compile:compileVariableAssignment()
-    local datatype = self:compileExpression(self.at.expression)
+	self:push("PUSHNUM", 0);
     self:pushLocal(self.at)
+    local datatype = self:compileExpression(self.at.expression)
 	local l = self:getLocal(self.at.identifier)
 	if l.datatype == "__INFER__" then
 		l.datatype = datatype
 	elseif datatype ~= l.datatype then
 		self:throw("Attempt to assign an expression with an evaluated type of '%s' to a variable of type '%s'", datatype, l.datatype)
 	end
-	--self:push("SETLOCAL", l.offset, self:comment("setlocal %s", l.identifier))
-	--self.offset = self.offset + 1
+	self:push("SETLOCAL", l.offset, self:comment("setlocal %s", l.identifier))
 end
 
 function compile:compileVariableReassignment()

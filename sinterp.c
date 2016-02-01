@@ -89,7 +89,7 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 	S->varmem = SIZE_STACK + memptr + 2;
 
 	S->ip = 0;
-	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00) {
+	while (code[S->ip] != 0x00 || code[S->ip + 1] != 0x00 || code[S->ip + 2] != 0x00 || code[S->ip + 3] != 0x00) {
 		const s8 opcode = (u8)code[S->ip];
 		S->ip++;
 		if (opcode == 0x18) {
@@ -213,9 +213,11 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 				break;
             }
             // JMP
-            case 0x12:
-                S->ip = S->labels[(u64)code[S->ip++]];
+            case 0x12: {
+				u64 addr = S->labels[(u64)code[S->ip++]];
+                S->ip = addr;
                 break;
+			}
             // JIT
             case 0x13:
                 if (S->mem[S->sp++]) {
@@ -244,9 +246,11 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
                 break;
             }
             // GET MEM
-            case 0x17:
-                S->mem[--S->sp] = S->mem[(u64)S->mem[S->sp++]];
+            case 0x17: {
+				u64 addr = (u64)S->mem[S->sp++];
+                S->mem[--S->sp] = S->mem[addr];
                 break;
+			}
 			// LABEL
 			case 0x18:
 				S->ip++;
@@ -279,7 +283,7 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 			}
             // FREE
             case 0x1d: {
-                u64 ptr = S->mem[S->sp++];
+                u64 ptr = (u64)S->mem[S->sp++];
                 spy_free(S, ptr);
                 break;
             }
@@ -317,7 +321,8 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 			// MOD
 			case 0x20: {
 				u64 b = (u64)S->mem[S->sp++];
-				S->mem[--S->sp] = (u64)S->mem[S->sp++] % b;
+				u64 a = (u64)S->mem[S->sp++];
+				S->mem[--S->sp] = a % b;
 				break;
 			}	
 		}
