@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <pthread.h>
 #include "sapi.h"
 #include "slib.h"
 #include "sinterp.h"
@@ -78,25 +77,6 @@ void spy_dumpMemory(spy_state* S) {
 	printf("---POINTERS---\n\n");
 }
 
-void* spy_startGarbageCollection(void* _S) {
-
-	spy_state* S = (spy_state*)_S;
-	
-	while (1) {
-		usleep(1000000);
-		u64 memleft = 0;
-		for (u64 i = S->varmem; i < SIZE_MEM; i++) {
-			if (!S->marks[i]) memleft++;
-		}
-		if (memleft < (f64)SIZE_MEM / 3) {
-			puts("TRIGGER");
-		}
-	}
-
-	return NULL;
-
-}
-
 void spy_run(spy_state* S, const f64* code, const f64* mem) {
 	// load constant memory and parse labels
 	u64 memptr = 0;
@@ -117,10 +97,6 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 		}
 	}
 	S->ip = 0;
-
-	// start the garbage collection thread
-	pthread_t gc;
-	pthread_create(&gc, NULL, spy_startGarbageCollection, S);
 
 	while (1) {
 		if (S->sp <= 0) {
