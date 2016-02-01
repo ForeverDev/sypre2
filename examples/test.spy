@@ -1,0 +1,11 @@
+type container {
+	x : real;
+}
+
+func main : null () {
+	
+	
+
+	return;
+}
+
