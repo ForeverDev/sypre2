@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <pthread.h>
 #include "sapi.h"
 #include "slib.h"
 #include "sinterp.h"
