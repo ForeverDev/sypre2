@@ -93,7 +93,8 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 		const s8 opcode = (u8)code[S->ip];
 		S->ip++;
 		if (opcode == 0x18) {
-			S->labels[(u64)code[S->ip++]] = S->ip + 1;
+			u64 targ = S->ip + 1;
+			S->labels[(u64)code[S->ip++]] = targ;
 		}
 	}
 	S->ip = 0;
@@ -131,9 +132,12 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 				S->sp++;
 				break;
             // ADD
-			case 0x05:
-				S->mem[--S->sp] = S->mem[S->sp++] + S->mem[S->sp++];
+			case 0x05: {
+				f64 b = S->mem[S->sp++];
+				f64 a = S->mem[S->sp++];
+				S->mem[--S->sp] = a + b;
 				break;
+			}
             // SUB
 			case 0x06: {
                 f64 b = S->mem[S->sp++];
@@ -142,13 +146,17 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
                 break;
             }
             // MUL
-			case 0x07:
-				S->mem[--S->sp] = S->mem[S->sp++] * S->mem[S->sp++];
+			case 0x07: {
+				f64 b = S->mem[S->sp++];
+				f64 a = S->mem[S->sp++];
+				S->mem[--S->sp] = a * b;
 				break;
+			}
             // DIV
 			case 0x08: {
-                f64 b = S->mem[S->sp++];
-                S->mem[--S->sp] = S->mem[S->sp++] / b;
+				f64 b = S->mem[S->sp++];
+				f64 a = S->mem[S->sp++];
+				S->mem[--S->sp] = a / b;
                 break;
             }
             // AND
@@ -164,9 +172,12 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 				S->mem[--S->sp] = !S->mem[S->sp++];
 				break;
             // EQ
-			case 0x0c:
-				S->mem[--S->sp] = (f64)(S->mem[S->sp++] == S->mem[S->sp++]);
+			case 0x0c: {
+				f64 b = S->mem[S->sp++];
+				f64 a = S->mem[S->sp++];
+				S->mem[--S->sp] = a == b;
 				break;
+			}
             // PUSHLOCAL
             case 0x0d:
                 S->mem[--S->sp] = S->mem[S->fp - (u64)code[S->ip++]];
@@ -242,8 +253,9 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 				break;
 			// GT
 			case 0x19: {
-				f64 val = S->mem[S->sp++];
-				S->mem[--S->sp] = S->mem[S->sp++] > val;
+				f64 b = S->mem[S->sp++];
+				f64 a = S->mem[S->sp++];
+				S->mem[--S->sp] = a > b;
                 break;
 			}
 			// GE
@@ -254,8 +266,9 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 			}
 			// LT
 			case 0x1b: {
-				f64 val = S->mem[S->sp++];
-				S->mem[--S->sp] = S->mem[S->sp++] < val;
+				f64 b = S->mem[S->sp++];
+				f64 a = S->mem[S->sp++];
+				S->mem[--S->sp] = a < b;
                 break;
 			}
 			// LE
@@ -323,7 +336,7 @@ void spy_run(spy_state* S, const f64* code, const f64* mem) {
 			obviously will need to be changed later)
 */
 void spy_executeBinaryFile(spy_state* S, const s8* filename) {
-	FILE* f = fopen(filename, "r");
+	FILE* f = fopen(filename, "rb");
 	u64 fsize;
 	s8* fcontents;
 	f64 code[65536];
@@ -363,7 +376,7 @@ void spy_executeBinaryFile(spy_state* S, const s8* filename) {
 		memcpy(&d, &fcontents[i], sizeof(f64));
 		code[codeptr++] = d;
 	}
-	
+
 	spy_run(S, code, data);
 
 }
