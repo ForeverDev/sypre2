@@ -34,6 +34,11 @@ static void spy_io_println(spy_state* S, u64 nargs, u64 flags) {
 	printf("\n");
 }
 
+static void spy_mem_free(spy_state* S, u64 nargs, u64 flags) {
+	spy_free(S, (u64)spyL_toreal(S));
+	spyL_push(S, 0);
+}
+
 // MATH LIBRARY
 static void spy_math_max(spy_state* S, u64 nargs, u64 flags) {
 	if (nargs == 0) {
@@ -101,6 +106,8 @@ static void spy_math_plot(spy_state* S, u64 nargs, u64 flags) {
 void spy_loadlibs(spy_state* S) {
 	spyL_pushcfunction(S, spy_io_print, "print");
 	spyL_pushcfunction(S, spy_io_println, "println");
+
+	spyL_pushcfunction(S, spy_mem_free, "free");
 
 	spyL_pushcfunction(S, spy_math_max, "max");
 	spyL_pushcfunction(S, spy_math_min, "min");

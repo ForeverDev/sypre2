@@ -56,19 +56,21 @@ compile.pres = {
 -- typechecking is done at compile time
 -- [IDENTIFIER] = { RETTYPE, ARGS }
 compile.corefuncs = {
-	["println"] = {"real", "..."},
-	["print"]	= {"real", "..."},
+	["println"] = {"null", "..."};
+	["print"]	= {"null", "..."};
+
+	["free"]	= {"null", "object"};
 	
-	["max"]		= {"real", "real..."},
-	["min"]		= {"real", "real..."},
-	["sin"]		= {"real", "real"},
-	["cos"]		= {"real", "real"},
-	["tan"]		= {"real", "real"},
-	["rad"]		= {"real", "real"},
-	["deg"]		= {"real", "real"},
-	["sqrt"]	= {"real", "real"},
-	["map"]		= {"real", "real", "real", "real", "real", "real"},
-	["squish"]	= {"real", "real", "real", "real"}
+	["max"]		= {"real", "real..."};
+	["min"]		= {"real", "real..."};
+	["sin"]		= {"real", "real"};
+	["cos"]		= {"real", "real"};
+	["tan"]		= {"real", "real"};
+	["rad"]		= {"real", "real"};
+	["deg"]		= {"real", "real"};
+	["sqrt"]	= {"real", "real"};
+	["map"]		= {"real", "real", "real", "real", "real", "real"};
+	["squish"]	= {"real", "real", "real", "real"};
 }
 
 compile.SHOW_COMMENTS = true 
@@ -455,7 +457,7 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
             for q = #v.arguments, 1, -1 do
 				local datatype = self:compileExpression(v.arguments[q])
 				if v.func and v.func.vararg and v.func.vararg_type then
-					if datatype ~= v.func.vararg_type then
+					if (datatype ~= v.func.vararg_type and v.func.vararg_type ~= "object") or (v.func.vararg_type == "object" and (datatype == "real" or datatype == "string")) then
 						self:throw("Attempt to pass argument of type '%s' to function '%s': argument should be of type '%s' (argument %s)",
 							datatype,
 							v.func.identifier,
@@ -464,7 +466,7 @@ function compile:compileExpression(expression, just_get_rpn, is_rpn)
 						)
 					end
 				elseif v.func and not v.func.vararg then
-					if datatype ~= v.func.arguments[q].datatype then
+					if (datatype ~= v.func.arguments[q].datatype and v.func.arguments[q].datatype ~= "object") or (v.func.arguments[q].datatype == "object" and (datatype == "real" or datatype == "string")) then
 						self:throw("Attempt to pass argument of type '%s' to function '%s': argument should be of type '%s' (argument %s)",
 							datatype,
 							v.func.identifier,

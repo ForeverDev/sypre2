@@ -4,6 +4,8 @@
 static void		spy_io_print(spy_state*, u64, u64);
 static void		spy_io_println(spy_state*, u64, u64);
 
+static void		spy_mem_free(spy_state*, u64, u64);
+
 static void		spy_math_max(spy_state*, u64, u64);
 static void		spy_math_min(spy_state*, u64, u64);
 static void		spy_math_sin(spy_state*, u64, u64);
